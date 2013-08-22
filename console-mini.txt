@@ -1,0 +1,34 @@
+
+Usage: snowball [-h | -V]
+       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number] [-P number]
+                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
+
+Example: snowball -r input
+         snowball -s seed-phrases.txt
+         echo "i am the|the only|the main|disqualified" | snowball -i"|"
+
+Program information:
+  -h        Output help instructions
+  -V        Output program information (version, author, contact info)
+
+Console output:
+  Default   Write snowball file names to stdout, errors to stderr
+  -q        Do not write anything to standard or error output
+  -o        Write the snowball poems to stdout instead of to separate files
+  -v        Write verbose program information to standard output
+  -d        Debug. Write internal program vectors to separate files
+
+Snowball generation:
+  -n10000   Specify how many snowballs to attempt to create
+  -f100000  Failed poems to ignore before just giving up
+  -P70      Percentage chance to use multi-word keys before single-word keys
+
+Snowball seed phrases:
+  -s filename.txt    Input seed phrases from a file, new line delimited
+  -i [ delim ]       Input seed phrases from stdin, 'delim' delimited
+
+Processing raw input:
+  -p snowball-preprocessed.txt   Specify the preprocessed input file
+  -r ./input_directory           Create from raw English text files
+  -l input-lexicon.txt           The file that contains list of valid words
+  -L                             Don't use a lexicon file to validate words

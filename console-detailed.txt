@@ -1,0 +1,139 @@
+
+======== Usage
+
+Usage: snowball [-h | -V]
+       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number] [-P number]
+                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
+
+======== Most common options
+
+If you don't care about the details, and just want to create some snowball
+poems, these are the only options you will need.
+
+snowball
+This most basic command will run the program using all default settings. It will
+scan a file called "snowball-preprocessed.txt" in the working directory for
+snowballing phrases, and create 10,000 snowball poems which will be output to a
+file called "output-snowballPoems-1234567890.txt". The name of each poem file
+will be written to the standard output stream, and any errors will be written to
+the standard error stream.
+
+snowball -r input-directory
+This will scan all files in the directory "input-directory" for raw English
+text, and will output any phrases that snowball up in letter count to a file
+called "snowball-preprocessed.txt". It will ignore any word that does not appear
+in the file "snowball-lexicon.txt". Then it will create 10,000 poems as normal.
+Note that ALL files in the folder will be read, so do be careful that the
+directory only contains the text files that you want to process.
+
+snowball -s seed-phrases.txt
+Same as the usual snowballs, except that the file called "seed-phrases.txt" in
+the working directory will be used as seed phrases for the poems. Each line of
+"seed-phrases.txt" will be used to generate 10,000 snowball poems, and they will
+be saved in the form "output-snowballPoems-1234567890-[seed phrase].txt".
+
+======== Program information
+
+-h --help
+Output a brief help message, then exit the program.
+
+-V --version 
+Print program information (version, author, contact info) then exit the program. 
+
+======== Console output
+
+The default is to write the name of each generated snowball file to stdout, each
+on a new line, with errors going to sterr.
+
+-q
+Disable all standard stream messages; do not write anything to standard or error
+output. Overrides the -v option.
+
+-o
+Write the generated snowball poems to stdout INSTEAD OF to separate files.
+Overrides the -v option. Using this with the -q option will output nothing and
+create no snowball files. I'm not sure why you'd want to do this though.
+Checking the exit status maybe?
+
+-v
+Write verbose program information to standard output. This displays where
+exactly in the code the program currently is. I use it mostly for debugging
+purposes. This is overridden by the -q and -o options.
+
+-d
+Write contents of internal program vectors to separate files, for debugging. If
+used with the -r raw text option, this will also output a file containing the
+list of all words that were not found in the lexicon file.
+
+======== Snowball generation
+
+-n10000
+Specify how many snowballs to attempt to create. If zero is specified no
+snowballs will be generated. This may be useful when processing raw English text
+(although I do tend to run a few snowballs, just to test the input). The
+default, if no -n option is specified, is to create 10,000 snowballs.
+
+-f100000
+This only comes into play when using a snowball "seed phrase" that is in the
+middle of the snowball. If the program cannot find its way back to a one letter
+word, then the poem will be ignored. This determines how many failed poems to
+ignore before just giving up. The default, if no -f option is specified, is to
+ignore 100,000 dodgy snowballs.
+
+-P70
+While generating the poem, word by word, the program can examine previously
+chosen words and use them in combination with the current word to select a more
+likely following word. For example if the poem currently being processed started
+"i am the lord", and the following word phrases were available:
+    "lord spoke",  "lord lucan",  "the lord above"
+The word "above" would be prioritised above "spoke" and "lucan", as "the lord"
+is a longer key than simply "lord".
+So this option specifies the percentage chance that the program will use a valid
+longer key over a shorter one. In the example above, the program would use
+"above" 70% of the time, and the remaining 30% of the time it would travel one
+lower and choose "spoke" or "lucan".
+The default is "70", which seems to work pretty well.
+
+======== Snowball seed phrases
+
+-s filename.txt
+Take seed phrases as input from a file, each separated by a new line. For each
+seed phrase, create a file full of snowballs based on that seed.
+
+-i [ delim ]
+Take seed phrases as input from standard input. For each seed phrase, create a
+file full of snowballs based on that seed. Phrases are seperated by the character
+specified in the "delim" argument. This argument is optional; if a delimiter is
+not specified then a new line is used. If a delimiter longer than one character
+is specified, it will only use the first character in the string.
+Example 1:  echo "sordid chatter" | snowball -i
+Example 2:  echo "i am the|the only|the lord|glittered menacingly" | snowball -i"|"
+Example 3:  snowball -i, < seed-phrases.csv
+
+======== Processing raw input
+
+-p snowball-preprocessed.txt
+Specify the preprocessed input file. This file contains a list of phrases that
+snowball upwards in letter count, with one phrase per line. This is used as
+input when generating snowballs, and is generated by the program as output when
+the -r option is specified. The default, if no -p option is specified, is to use
+a file called "snowball-preprocessed.txt".
+
+-r ./input_directory
+Create from raw English text files. This will create a processed file from the
+raw text files in the specified directory. This process converts each raw file
+to a processed file named "pro-00000.txt", and saves each into the working
+directory. When all files are processed, it then groups them together into one
+big file, removes duplicate lines, and deletes the temporary smaller files. So
+don't go deleting the temporary files while this is running, or you'll bugger it
+all up.
+
+-l snowball-lexicon.txt
+Specify the lexicon file to use to validate words in the raw text files. The
+program will ignore any word that is not found in the lexicon. If this option is
+not specified, the default is to use the file "snowball-lexicon.txt". (Throws an
+error if -l and -L are both specified)
+
+-L
+Don't use a lexicon file to validate words. If this is specified, ALL words will
+be considered valid. (Throws an error if -l and -L are both specified)
