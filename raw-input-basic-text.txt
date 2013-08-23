@@ -1,0 +1,17 @@
+If you find that the program doesn't run with your raw input files, try adding this file to the input folder. The program searches for 1 and 2 letter words to start from; if it doesn't find any it can't do its work. The below text will help it to begin.
+
+a is for
+a no way
+i am all
+i do her
+i in you
+i or you
+i so can
+i to you
+o he was
+o if the
+o if she
+o in the
+o my god
+o so how
+o we can
