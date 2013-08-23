@@ -22,11 +22,15 @@ techniques invented by the [Oulipo](http://en.wikipedia.org/wiki/Oulipo) (Worksh
 A collection of curated output can be found on Twitter here:
 https://twitter.com/SnowballPoetry
 
-# tl;dr
+# Quick Start
 ## "I don't care about the geeky specifics, just let me make poems!"
 
-You can download the Windows executable here:
+Download the Windows executable program here:
 https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe
+
+Also download these two text files, and save them in the same folder as the program:
+https://github.com/nossidge/snowball/blob/master/snowball-lexicon.txt?raw=true
+https://github.com/nossidge/snowball/blob/master/snowball-preprocessed.txt?raw=true
 
 To use it, see the "Most common options" section of console-detailed.txt:
 https://github.com/nossidge/snowball/blob/master/console-detailed.txt
