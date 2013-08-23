@@ -25,7 +25,7 @@ https://twitter.com/SnowballPoetry
 # Quick Start
 ## "I don't care about the geeky specifics, just let me make poems!"
 
-Download the Windows executable program here:
+Download the Windows 7 executable program here:
 https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe
 
 Also download these two text files, and save them in the same folder as the program:
@@ -198,5 +198,5 @@ as I don't personally speak any other language I won't be doing this.
 
 ### Other operating systems
 
-Currently Windows only, but probably able to be converted easily enough.
+Currently Windows 7 only, but probably able to be converted easily enough.
 It should just be the file and directory code that needs looking at.
