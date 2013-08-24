@@ -60,7 +60,7 @@ bool debugVectorsSaveToFile = false;
 unsigned int multiKeyPercentage = 70;
 
 // The number of snowball poems to generate.
-unsigned int poemTarget = 1000;
+unsigned int poemTarget = 10000;
 
 // This only comes into play when using a snowball "seed phrase" that is in
 //   the middle of the snowball. If the program cannot find its way back to
@@ -1045,7 +1045,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:Pi::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:s:i::p:r:l:L")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1079,6 +1079,12 @@ int main(int argc, char* argv[]) {
         seedPhrasesFileName = optarg;
         break;
 
+      // Take seed phrases as input from standard input
+      case 'i': // -i delim
+        opt_i = true;
+        if (optarg != NULL) seedPhraseDelim = (char)optarg[0];
+        break;
+
       // Specify the preprocessed input file.
       case 'p': // -p snowball-preprocessed.txt
         opt_p = true;
@@ -1095,12 +1101,6 @@ int main(int argc, char* argv[]) {
       case 'l': // -l snowball-lexicon.txt
         opt_l = true;
         lexiconFileName = optarg;
-        break;
-
-      // Take seed phrases as input from standard input
-      case 'i': // -i delim
-        opt_i = true;
-        if (optarg != NULL) seedPhraseDelim = (char)optarg[0];
         break;
 
       // Handle dodgy arguments.
