@@ -1,4 +1,5 @@
 # Snowball Poem Generator
+Version 1.1 - 2013/09/01
 by Paul Thompson - nossidge@gmail.com
 
 Generates snowball poems from raw English text, using Markov chains and dictionary
@@ -26,7 +27,7 @@ https://twitter.com/SnowballPoetry
 ## "I don't care about the geeky specifics, just let me make poems!"
 
 Download the Windows 7 executable program here:
-https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe
+https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe?raw=true
 
 Also download these two text files, and save them in the same folder as the program:
 https://github.com/nossidge/snowball/blob/master/snowball-lexicon.txt?raw=true

@@ -1,6 +1,7 @@
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number] [-P number]
+       snowball [-v | -q] [-v | -o] [-d]
+                [-n number] [-f number] [-P number] [-b number] [-e number]
                 [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
 
 Example: snowball -r input
@@ -19,9 +20,12 @@ Console output:
   -d        Debug. Write internal program vectors to separate files
 
 Snowball generation:
+            ( Arguments are all numeric integers )
   -n10000   Specify how many snowballs to attempt to create
   -f100000  Failed poems to ignore before just giving up
   -P70      Percentage chance to use multi-word keys before single-word keys
+  -b4       Begin poems at a word length other than 1
+  -e8       Reject poems where last word is fewer than 'n' letters long
 
 Snowball seed phrases:
   -s filename.txt    Input seed phrases from a file, new line delimited

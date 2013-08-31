@@ -2,7 +2,8 @@
 ======== Usage
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number] [-P number]
+       snowball [-v | -q] [-v | -o] [-d]
+                [-n number] [-f number] [-P number] [-b number] [-e number]
                 [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
 
 ======== Most common options
@@ -75,10 +76,12 @@ default, if no -n option is specified, is to create 10,000 snowballs.
 
 -f100000
 This only comes into play when using a snowball "seed phrase" that is in the
-middle of the snowball. If the program cannot find its way back to a one letter
-word, then the poem will be ignored. This determines how many failed poems to
-ignore before just giving up. The default, if no -f option is specified, is to
-ignore 100,000 dodgy snowballs.
+middle of the snowball, or if the -e option is specified. If the program cannot
+create a valid poem (either by finding its way back to a one letter word using
+a seed phrase, or by reaching the minimum letter count with the -e option) then
+the poem will be ignored. This determines how many failed poems to ignore before
+just giving up. The default, if no -f option is specified, is to ignore 100,000
+dodgy snowballs.
 
 -P70
 While generating the poem, word by word, the program can examine previously
@@ -93,6 +96,20 @@ longer key over a shorter one. In the example above, the program would use
 "above" 70% of the time, and the remaining 30% of the time it would travel one
 lower and choose "spoke" or "lucan".
 The default is "70", which seems to work pretty well.
+
+-b4
+"Beginning word length" - Begin poems at a word length other than 1. If used
+with a seed phrase, the poem will still begin with that seed phrase. So if the
+seed phrase was "last words" and the begin length was 9, the poems would still
+begin at "last", even though it only has 4 letters.
+
+-e8
+"Ending word length" - Reject poems whose last words are not at least 'n'
+letters long. This does nothing special during the creation of the poems, it
+only comes into play after the poem has been generated. It checks that the poem
+is long enough, and if it isn't the poem is ignored. You can uses the failure
+count -f option to specify how many failed poems to allow before throwing an
+error.
 
 ======== Snowball seed phrases
 
