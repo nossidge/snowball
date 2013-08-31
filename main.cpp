@@ -1,16 +1,17 @@
 
 /*//////////////////////////////////////////////////////////////////////////////
 
-  Snowball Poem Generator - Version 130822
+  Snowball Poem Generator - Version 1.1 - 2013/09/01
   by Paul Thompson - snowballpoetry@gmail.com
   Homepage - https://github.com/nossidge/snowball
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-
 // Windows file stuff
 #define PathSeparator "\\"
 #include <dirent.h>
+
+#include <getopt.h>
 
 #include <algorithm>
 #include <time.h>
@@ -19,17 +20,9 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
-#include <stdio.h>
 
-#include <cstring>
-#include <string>
 #include <vector>
-#include <queue>
 #include <map>
-
-// Parse the program arguments
-#include <unistd.h>
-#include <getopt.h>
 
 using namespace std;
 
@@ -55,18 +48,24 @@ string directoryRawInput = "input";
 // Should the temporary vectors be saved to disk as text files?
 bool debugVectorsSaveToFile = false;
 
+// The number of snowball poems to attempt to generate.
+unsigned int poemTarget = 10000;
+
+// How many failed poems to ignore before the program gives up.
+// Only used with the -e option, or if seed phrases are used.
+unsigned int poemFailureMax = 100000;
+
 // Used for multi-key markov chains to dermine the percentage that the chosen
 //   key will be used (as opposed to using a shorter, less context aware key).
 unsigned int multiKeyPercentage = 70;
 
-// The number of snowball poems to generate.
-unsigned int poemTarget = 10000;
+// Begin poems at a word length other than 1.
+bool usePoemWordStart = false;
+unsigned int poemWordStart = 1;
 
-// This only comes into play when using a snowball "seed phrase" that is in
-//   the middle of the snowball. If the program cannot find its way back to
-//   a one letter word, then the poem will be ignored. This variable
-//   determines how many failed poems to ignore before just giving up.
-unsigned int poemFailureMax = 100000;
+// Reject poems where last word is fewer than 'n' letters long.
+bool usePoemWordEnd = false;
+unsigned int poemWordEnd = 0;
 
 // Program option to read in seed phrases from a file. Default is false.
 // If true, we also need the name of the input file.
@@ -108,7 +107,7 @@ map<string,vector<string> > wordsBackwards;
 
 /// ////////////////////////////////////////////////////////////////////////////
 
-// Don't output ever if (!outputIsQuiet)
+// Don't output ever if (outputIsQuiet)
 // Only output DEBUG stuff if (outputIsVerbose)
 #define STANDARD 1
 #define ERROR 2
@@ -124,7 +123,7 @@ void outputToConsole(string message, int type) {
 }
 void outputToConsoleVersion(int type) {
   outputToConsole("", type);
-  outputToConsole("  Snowball Poem Generator - Version 130822", type);
+  outputToConsole("  Snowball Poem Generator - Version 1.1 - 2013/09/01", type);
   outputToConsole("  by Paul Thompson - snowballpoetry@gmail.com", type);
   outputToConsole("  Homepage - https://github.com/nossidge/snowball", type);
 }
@@ -132,7 +131,8 @@ void outputToConsoleUsage(int type) {
   ostringstream ss;
   ss <<
     "\nUsage: snowball [-h | -V]"
-    "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number] [-P number]"
+    "\n       snowball [-v | -q] [-v | -o] [-d]"
+    "\n                [-n number] [-f number] [-P number] [-b number] [-e number]"
     "\n                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]"
     "\n"
   ;
@@ -159,9 +159,12 @@ void outputToConsoleHelp(int type) {
     "\n  -d        Debug. Write internal program vectors to separate files"
     "\n"
     "\nSnowball generation:"
+    "\n            ( Arguments are all numeric integers )"
     "\n  -n10000   Specify how many snowballs to attempt to create"
     "\n  -f100000  Failed poems to ignore before just giving up"
     "\n  -P70      Percentage chance to use multi-word keys before single-word keys"
+    "\n  -b4       Begin poems at a word length other than 1"
+    "\n  -e8       Reject poems where last word is fewer than 'n' letters long"
     "\n"
     "\nSnowball seed phrases:"
     "\n  -s filename.txt   Input seed phrases from a file, new line delimited"
@@ -724,8 +727,8 @@ bool createPoemSnowball(string seedPhrase) {
   // It's entirely possible for the code to get to this point without any useful
   //   data in the input vectors. Do some basic checks to see if they're at
   //   least a little bit valid.
-  if ( (wordsWithLength[1].size() == 0) || (wordsForwards.size() == 0) ||
-       (wordsBackwards.size() == 0) ) {
+  if ( (wordsWithLength[1].size() == 0) || (wordsWithLength[2].size() == 0) ||
+       (wordsForwards.size() == 0) || (wordsBackwards.size() == 0) ) {
     outputToConsole("Snowball input files contain invalid (or no) data.", ERROR);
     return false;
   }
@@ -748,35 +751,36 @@ bool createPoemSnowball(string seedPhrase) {
     // seedPhrase does not exist.
     if (seedPhrase == "") {
 
-      // There are three approaches here.
-      // Choose which one to use at random.
-      unsigned int startMethod = rand() % 3 + 1;
+      // If we want to start from a higher word length than 1:
+      if (usePoemWordStart) {
+        randIndex = rand() % wordsWithLength[poemWordStart].size();
+        chosenWord = wordsWithLength[poemWordStart][randIndex];
 
-      string oneLetterWords[3] = {"a","i","o"};
+      // This is the normal default path.
+      } else {
 
-      switch (startMethod) {
+        // There are two approaches here.
+        // Choose which one to use at random.
+        unsigned int startMethod = rand() % 2 + 1;
 
-        // Select a random 1 letter word from {wordsWithLength}
-        case 1:
-          randIndex = rand() % wordsWithLength[1].size();
-          chosenWord = wordsWithLength[1][randIndex];
-          break;
+        switch (startMethod) {
 
-        // Just choose between one of A, I, or O
-        case 2:
-          randIndex = rand() % 3;
-          chosenWord = oneLetterWords[randIndex];
-          break;
+          // Select a random 1 letter word from {wordsWithLength}
+          case 1:
+            randIndex = rand() % wordsWithLength[1].size();
+            chosenWord = wordsWithLength[1][randIndex];
+            break;
 
-        // Select a 2 letter word, and use "o" as the first line
-        case 3:
-          randIndex = rand() % wordsWithLength[2].size();
-          chosenWord = wordsWithLength[2][randIndex];
-          theSnowball.push_back("o");
-          break;
+          // Select a 2 letter word, and use "o" as the first line
+          case 2:
+            randIndex = rand() % wordsWithLength[2].size();
+            chosenWord = wordsWithLength[2][randIndex];
+            theSnowball.push_back("o");
+            break;
+        }
       }
-      theSnowball.push_back(chosenWord);
 
+      theSnowball.push_back(chosenWord);
 
     // seedPhrase exists.
     } else {
@@ -811,82 +815,88 @@ bool createPoemSnowball(string seedPhrase) {
           theSnowball.push_back(seedPhraseVector[i]);
         }
 
-        bool wordNotMatched = false;
-        do {
-          unsigned int countOfMatched = wordsBackwards[chosenWord].size();
+        // If the first word is less than or equal to poemWordStart
+        //   (which defaults to 1), then don't look for smaller words.
+        if ( !(seedPhraseVector[0].length() <= poemWordStart) ) {
 
-          if (countOfMatched == 0) {
-            wordNotMatched = true;
-          } else {
+          bool wordNotMatched = false;
+          do {
+            unsigned int countOfMatched = wordsBackwards[chosenWord].size();
 
-            /// THOUGHT: This stuff is very similar to the Forward
-            ///          Snowballs stuff below. Could this be gracefully
-            ///          split out to a separate function?
-            vector<string> allKeys;
-            if (theSnowball.size() == 1) {
-              allKeys.push_back(chosenWord);
+            if (countOfMatched == 0) {
+              wordNotMatched = true;
             } else {
-              for (int i=0; i<theSnowball.size(); i++) {
-                string aSingleKey;
-                for (int j=theSnowball.size()-1; j>=i; j--) {
-                  aSingleKey = aSingleKey + theSnowball[j] + "|";
-                } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
-                allKeys.push_back(aSingleKey);
-              }
-            }
 
-            // Determine the longest key that returns a value.
-            // Iterate forwards, use for loop so we can get the index.
-            unsigned int iElement = 0;
-            for (iElement = 0; iElement < allKeys.size(); iElement++) {
-              if (wordsBackwards[allKeys[iElement]].size() != 0) break;
-            }
 
-            // We now know that all elements of {allKeys} from
-            //   (iElement) to (allKeys.size()-1) are valid.
-            // Loop through the valid elements to select the chosen key.
-
-            // Default to the single word key.
-            string chosenKey = allKeys[allKeys.size()-1];
-
-            // Loop through the multi-word keys and randomly choose one.
-            if (allKeys.size() > 1) {
-              for (unsigned int i = iElement; i < allKeys.size()-1; i++) {
-                unsigned int randNumber = rand() % 100 + 1;
-                // Use percentage variable to determine priority of the more
-                //   complex keys over the shorter ones.
-                if (randNumber <= multiKeyPercentage) {
-                  chosenKey = allKeys[i];
-                  break;
+              /// THOUGHT: This stuff is very similar to the Forward
+              ///          Snowballs stuff below. Could this be gracefully
+              ///          split out to a separate function?
+              vector<string> allKeys;
+              if (theSnowball.size() == 1) {
+                allKeys.push_back(chosenWord);
+              } else {
+                for (unsigned int i=0; i<theSnowball.size(); i++) {
+                  string aSingleKey;
+                  for (unsigned int j=theSnowball.size(); j>i; j--) {
+                    aSingleKey = aSingleKey + theSnowball[j-1] + "|";
+                  } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
+                  allKeys.push_back(aSingleKey);
                 }
               }
+
+              // Determine the longest key that returns a value.
+              // Iterate forwards, use for loop so we can get the index.
+              unsigned int iElement = 0;
+              for (iElement = 0; iElement < allKeys.size(); iElement++) {
+                if (wordsBackwards[allKeys[iElement]].size() != 0) break;
+              }
+
+              // We now know that all elements of {allKeys} from
+              //   (iElement) to (allKeys.size()-1) are valid.
+              // Loop through the valid elements to select the chosen key.
+
+              // Default to the single word key.
+              string chosenKey = allKeys[allKeys.size()-1];
+
+              // Loop through the multi-word keys and randomly choose one.
+              if (allKeys.size() > 1) {
+                for (unsigned int i = iElement; i < allKeys.size()-1; i++) {
+                  unsigned int randNumber = rand() % 100 + 1;
+                  // Use percentage variable to determine priority of the more
+                  //   complex keys over the shorter ones.
+                  if (randNumber <= multiKeyPercentage) {
+                    chosenKey = allKeys[i];
+                    break;
+                  }
+                }
+              }
+
+              // Choose one of the values at random from the key.
+              randIndex = rand() % wordsBackwards[chosenKey].size();
+              chosenWord = wordsBackwards[chosenKey][randIndex];
+
+              // Add the new word to the snowball vector.
+              theSnowball.push_back(chosenWord);
+              ///   ^ THOUGHT ^
+
+
             }
+          } while (!wordNotMatched && chosenWord.length() > poemWordStart);
 
-            // Choose one of the values at random from the key.
-            randIndex = rand() % wordsBackwards[chosenKey].size();
-            chosenWord = wordsBackwards[chosenKey][randIndex];
-
-            // Add the new word to the snowball vector.
-            theSnowball.push_back(chosenWord);
-            ///   ^ THOUGHT ^
-
-
+          // If there was an error in the process, then abandon this poem.
+          if (wordNotMatched) {
+            poemCountFailure++;
+            continue;
           }
-        } while (!wordNotMatched && chosenWord.length() > 1);
 
-        // If there was an error in the process, then abandon this poem.
-        if (wordNotMatched) {
-          poemCountFailure++;
-          continue;
+          // Because we looped backwards, we now need to reverse the vector.
+          std::reverse(theSnowball.begin(), theSnowball.end());
+
         }
-
-        // Because we looped backwards, we now need to reverse the vector.
-        std::reverse(theSnowball.begin(), theSnowball.end());
       }
 
       chosenWord = seedPhraseVector.back();
     }
-
 
 
     // Find a random matching word in {wordsForwards}
@@ -947,6 +957,18 @@ bool createPoemSnowball(string seedPhrase) {
       theSnowball.push_back(chosenWord);
     }
 
+
+    // If we require a poem to be at least a certain length, then
+    //   the poem is considered a failure if it is too short.
+    if (usePoemWordEnd) {
+      unsigned int minimumWordCount = (1 + poemWordEnd - poemWordStart);
+      if ( theSnowball.size() < minimumWordCount ) {
+        poemCountFailure++;
+        continue;
+      }
+    }
+
+
     // Add {theSnowball} to {allSnowballs}.
     string snowballString;
     for (vector<string>::iterator iter = theSnowball.begin();
@@ -954,6 +976,7 @@ bool createPoemSnowball(string seedPhrase) {
       snowballString = snowballString + *iter + " ";
     } snowballString.erase(snowballString.find_last_not_of(" ")+1);
     allSnowballs.push_back(snowballString);
+
 
     // Add to the counter.
     poemCountSuccess++;
@@ -1045,7 +1068,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:s:i::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:b:e:s:i::p:r:l:L")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1071,6 +1094,21 @@ int main(int argc, char* argv[]) {
       case 'P':
         multiKeyPercentage = (unsigned int)abs(atoi(optarg));
         if (multiKeyPercentage > 100) multiKeyPercentage = 100;
+        break;
+
+      // Begin poems at a word length other than 1.
+      case 'b':
+        usePoemWordStart = true;
+        poemWordStart = (unsigned int)abs(atoi(optarg));
+        if (poemWordStart == 0) poemWordStart = 1;
+        break;
+
+      // Reject poems where last word is fewer than 'n' letters long.
+      case 'e':
+        usePoemWordEnd = true;
+        poemWordEnd = (unsigned int)abs(atoi(optarg));
+        if (poemWordEnd == 0) poemWordEnd = 1;
+        if (poemWordEnd > 100) poemWordEnd = 100;
         break;
 
       // Take seed phrases as input from a file.
@@ -1232,9 +1270,13 @@ int main(int argc, char* argv[]) {
   ssProgramStatus << ">> processRawText: " << processRawText << endl;
   ssProgramStatus << ">> directoryRawInput: " << directoryRawInput << endl;
   ssProgramStatus << ">> debugVectorsSaveToFile: " << debugVectorsSaveToFile << endl;
-  ssProgramStatus << ">> multiKeyPercentage: " << multiKeyPercentage << endl;
   ssProgramStatus << ">> poemTarget: " << poemTarget << endl;
   ssProgramStatus << ">> poemFailureMax: " << poemFailureMax << endl;
+  ssProgramStatus << ">> multiKeyPercentage: " << multiKeyPercentage << endl;
+  ssProgramStatus << ">> usePoemWordStart: " << usePoemWordStart << endl;
+  ssProgramStatus << ">> poemWordStart: " << poemWordStart << endl;
+  ssProgramStatus << ">> usePoemWordEnd: " << usePoemWordEnd << endl;
+  ssProgramStatus << ">> poemWordEnd: " << poemWordEnd << endl;
   ssProgramStatus << ">> seedPhrasesFileName: " << seedPhrasesFileName << endl;
   ssProgramStatus << ">> useLexiconFile: " << useLexiconFile << endl;
   ssProgramStatus << ">> lexiconFileName: " << lexiconFileName << endl;
