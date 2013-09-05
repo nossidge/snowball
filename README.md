@@ -1,6 +1,7 @@
 # Snowball Poem Generator
-Version 1.1 - 2013/09/01
-by Paul Thompson - nossidge@gmail.com
+Version 1.2 - 2013/09/05
+
+by Paul Thompson - nossidge@gmail.com / snowballpoetry@gmail.com
 
 Generates snowball poems from raw English text, using Markov chains and dictionary
 lookups to validate input words.

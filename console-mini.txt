@@ -1,12 +1,12 @@
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d]
-                [-n number] [-f number] [-P number] [-b number] [-e number]
+       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
+                [-P number] [-k number] [-b number] [-e number]
                 [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
 
 Example: snowball -r input
          snowball -s seed-phrases.txt
-         echo "i am the|the only|the main|disqualified" | snowball -i"|"
+         echo "i am the,the only,the main,disqualified" | snowball -i,
 
 Program information:
   -h        Output help instructions
@@ -23,7 +23,8 @@ Snowball generation:
             ( Arguments are all numeric integers )
   -n10000   Specify how many snowballs to attempt to create
   -f100000  Failed poems to ignore before just giving up
-  -P70      Percentage chance to use multi-word keys before single-word keys
+  -P70      Percentage chance to use longer word keys before shorter keys
+  -k1       Specify a minimum word key size to use. Default is 1
   -b4       Begin poems at a word length other than 1
   -e8       Reject poems where last word is fewer than 'n' letters long
 

@@ -1,11 +1,18 @@
 
 /*//////////////////////////////////////////////////////////////////////////////
 
-  Snowball Poem Generator - Version 1.1 - 2013/09/01
-  by Paul Thompson - snowballpoetry@gmail.com
-  Homepage - https://github.com/nossidge/snowball
+  Snowball Poem Generator
+
+  by Paul Thompson - nossidge@gmail.com
+  Project Email    - snowballpoetry@gmail.com
+  Project Homepage - https://github.com/nossidge/snowball
 
 //////////////////////////////////////////////////////////////////////////////*/
+
+#define VERSION "Version 1.2"
+#define DATE    "2013/09/05"
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Windows file stuff
 #define PathSeparator "\\"
@@ -59,6 +66,9 @@ unsigned int poemFailureMax = 100000;
 //   key will be used (as opposed to using a shorter, less context aware key).
 unsigned int multiKeyPercentage = 70;
 
+// Specify a minimum word key size to use. Default is 1.
+unsigned int minKeySize = 1;
+
 // Begin poems at a word length other than 1.
 bool usePoemWordStart = false;
 unsigned int poemWordStart = 1;
@@ -109,10 +119,8 @@ map<string,vector<string> > wordsBackwards;
 
 // Don't output ever if (outputIsQuiet)
 // Only output DEBUG stuff if (outputIsVerbose)
-#define STANDARD 1
-#define ERROR 2
-#define DEBUG 3
-void outputToConsole(string message, int type) {
+enum MsgType { STANDARD, ERROR, DEBUG };
+void outputToConsole(string message, MsgType type) {
   if (!outputIsQuiet) {
     if ( (type == STANDARD) || (type == DEBUG && outputIsVerbose) ) {
       cout << message << endl;
@@ -121,31 +129,32 @@ void outputToConsole(string message, int type) {
     }
   }
 }
-void outputToConsoleVersion(int type) {
+void outputToConsoleVersion(MsgType type) {
   outputToConsole("", type);
-  outputToConsole("  Snowball Poem Generator - Version 1.1 - 2013/09/01", type);
-  outputToConsole("  by Paul Thompson - snowballpoetry@gmail.com", type);
-  outputToConsole("  Homepage - https://github.com/nossidge/snowball", type);
+  outputToConsole("  Snowball Poem Generator - " VERSION " - " DATE, type);
+  outputToConsole("  by Paul Thompson - nossidge@gmail.com", type);
+  outputToConsole("  Project Email    - snowballpoetry@gmail.com", type);
+  outputToConsole("  Project Homepage - https://github.com/nossidge/snowball", type);
 }
-void outputToConsoleUsage(int type) {
+void outputToConsoleUsage(MsgType type) {
   ostringstream ss;
   ss <<
     "\nUsage: snowball [-h | -V]"
-    "\n       snowball [-v | -q] [-v | -o] [-d]"
-    "\n                [-n number] [-f number] [-P number] [-b number] [-e number]"
+    "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
+    "\n                [-P number] [-k number] [-b number] [-e number]"
     "\n                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
 }
-void outputToConsoleHelp(int type) {
+void outputToConsoleHelp(MsgType type) {
   outputToConsoleVersion(type);
   outputToConsoleUsage(type);
   ostringstream ss;
   ss <<
       "Example: snowball -r input"
     "\n         snowball -s seed-phrases.txt"
-    "\n         echo \"i am the|the only|the main|disqualified\" | snowball -i\"|\""
+    "\n         echo \"i am the,the only,the main,disqualified\" | snowball -i,"
     "\n"
     "\nProgram information:"
     "\n  -h        Output help instructions"
@@ -162,7 +171,8 @@ void outputToConsoleHelp(int type) {
     "\n            ( Arguments are all numeric integers )"
     "\n  -n10000   Specify how many snowballs to attempt to create"
     "\n  -f100000  Failed poems to ignore before just giving up"
-    "\n  -P70      Percentage chance to use multi-word keys before single-word keys"
+    "\n  -P70      Percentage chance to use longer word keys before shorter keys"
+    "\n  -k1       Specify a minimum word key size to use. Default is 1"
     "\n  -b4       Begin poems at a word length other than 1"
     "\n  -e8       Reject poems where last word is fewer than 'n' letters long"
     "\n"
@@ -924,8 +934,18 @@ bool createPoemSnowball(string seedPhrase) {
       // Determine the longest key that returns a value.
       // Iterate forwards, use for loop so we can get the index.
       unsigned int iElement = 0;
+      unsigned int invalidKeyCount = 0;
       for (iElement = 0; iElement < allKeys.size(); iElement++) {
         if (wordsForwards[allKeys[iElement]].size() != 0) break;
+        invalidKeyCount++;
+      }
+
+      // If the key is not big enough for minKeySize, then stop
+      //   adding to the poem, and output what is there.
+      if ( (allKeys.size() - invalidKeyCount) < minKeySize) {
+        if (theSnowball.size() > minKeySize) {
+          break;
+        }
       }
 
       // We now know that all elements of {allKeys} from
@@ -937,7 +957,7 @@ bool createPoemSnowball(string seedPhrase) {
 
       // Loop through the multi-word keys and randomly choose one.
       if (allKeys.size() > 1) {
-        for (unsigned int i = iElement; i < allKeys.size()-2; i++) {
+        for (unsigned int i = iElement; i <= allKeys.size()-2; i++) {
           unsigned int randNumber = rand() % 100 + 1;
 
           // Use percentage variable to determine priority of the more
@@ -957,7 +977,6 @@ bool createPoemSnowball(string seedPhrase) {
       theSnowball.push_back(chosenWord);
     }
 
-
     // If we require a poem to be at least a certain length, then
     //   the poem is considered a failure if it is too short.
     if (usePoemWordEnd) {
@@ -968,7 +987,6 @@ bool createPoemSnowball(string seedPhrase) {
       }
     }
 
-
     // Add {theSnowball} to {allSnowballs}.
     string snowballString;
     for (vector<string>::iterator iter = theSnowball.begin();
@@ -977,15 +995,14 @@ bool createPoemSnowball(string seedPhrase) {
     } snowballString.erase(snowballString.find_last_not_of(" ")+1);
     allSnowballs.push_back(snowballString);
 
-
     // Add to the counter.
     poemCountSuccess++;
   }
 
-  // Sort the poems all alphabetically. (This will slso get rid
-  //   of duplicates, although it's unlikely there will be any.)
+  // Sort all the poems alphabetically.
+  // This will also get rid of duplicates, although with a large
+  //   preprocessed corpus file it's unlikely there will be many.
   vectorSortAndDedupe(allSnowballs);
-
 
   // If the option "outputIsPoems" is true then:
   // Write the generated snowball poems to stdout INSTEAD OF to a file.
@@ -1068,7 +1085,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:b:e:s:i::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:s:i::p:r:l:L")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1094,6 +1111,13 @@ int main(int argc, char* argv[]) {
       case 'P':
         multiKeyPercentage = (unsigned int)abs(atoi(optarg));
         if (multiKeyPercentage > 100) multiKeyPercentage = 100;
+        break;
+
+      // Specify the minimum word key size to use.
+      case 'k':
+        minKeySize = (unsigned int)abs(atoi(optarg));
+        if (minKeySize <= 0) minKeySize = 1;
+        if (minKeySize > 10) minKeySize = 10;
         break;
 
       // Begin poems at a word length other than 1.

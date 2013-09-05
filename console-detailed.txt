@@ -2,8 +2,8 @@
 ======== Usage
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d]
-                [-n number] [-f number] [-P number] [-b number] [-e number]
+       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
+                [-P number] [-k number] [-b number] [-e number]
                 [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
 
 ======== Most common options
@@ -96,6 +96,14 @@ longer key over a shorter one. In the example above, the program would use
 "above" 70% of the time, and the remaining 30% of the time it would travel one
 lower and choose "spoke" or "lucan".
 The default is "70", which seems to work pretty well.
+
+-k1
+Specify a minimum word key size to use. The default is 1. Using the example
+above, if a key size of 2 was used, only the phrase "the lord above" would be
+considered, as "lord spoke" and "lord lucan" use only one word as their key.
+This only really works with a value of 2, but it accepts values up to 10. 
+Larger keys work much better with a large corpus though, and keys greater than
+2 rarely produce anything at all.
 
 -b4
 "Beginning word length" - Begin poems at a word length other than 1. If used
