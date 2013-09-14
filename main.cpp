@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define VERSION "Version 1.2"
-#define DATE    "2013/09/05"
+#define VERSION "Version 1.3"
+#define DATE    "2013/09/14"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +77,10 @@ unsigned int poemWordStart = 1;
 bool usePoemWordEnd = false;
 unsigned int poemWordEnd = 0;
 
+// Should we exclude any characters (for lipogram output).
+bool excludeAnyChars = false;
+string excludedChars = "";
+
 // Program option to read in seed phrases from a file. Default is false.
 // If true, we also need the name of the input file.
 string seedPhrasesFileName = "";
@@ -141,7 +145,7 @@ void outputToConsoleUsage(MsgType type) {
   ss <<
     "\nUsage: snowball [-h | -V]"
     "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
-    "\n                [-P number] [-k number] [-b number] [-e number]"
+    "\n                [-P number] [-k number] [-b number] [-e number] [-x chars]"
     "\n                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]"
     "\n"
   ;
@@ -168,13 +172,14 @@ void outputToConsoleHelp(MsgType type) {
     "\n  -d        Debug. Write internal program vectors to separate files"
     "\n"
     "\nSnowball generation:"
-    "\n            ( Arguments are all numeric integers )"
-    "\n  -n10000   Specify how many snowballs to attempt to create"
-    "\n  -f100000  Failed poems to ignore before just giving up"
-    "\n  -P70      Percentage chance to use longer word keys before shorter keys"
-    "\n  -k1       Specify a minimum word key size to use. Default is 1"
-    "\n  -b4       Begin poems at a word length other than 1"
-    "\n  -e8       Reject poems where last word is fewer than 'n' letters long"
+    "\n                ( Arguments are all numeric integers )"
+    "\n  -n10000       Specify how many snowballs to attempt to create"
+    "\n  -f100000      Failed poems to ignore before just giving up"
+    "\n  -P70          Percentage chance to use longer word keys before shorter keys"
+    "\n  -k1           Specify a minimum word key size to use. Default is 1"
+    "\n  -b4           Begin poems at a word length other than 1"
+    "\n  -e8           Reject poems where last word is fewer than 'n' letters long"
+    "\n  -x [ chars ]  Create poems that exclude all argument letters"
     "\n"
     "\nSnowball seed phrases:"
     "\n  -s filename.txt   Input seed phrases from a file, new line delimited"
@@ -715,6 +720,39 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+// Return a string vector that contains only the values of {inputVector} which
+//   don't contain any of the chars in "charsToExclude"
+vector<string> filterOutExcludedChars(vector<string> &inputVector,
+                                      string charsToExclude) {
+  vector<string> returnVector;
+  string strToCheck;
+  std::size_t forbiddenChars;
+
+  // Loop through {inputVector} values.
+  for(vector<string>::iterator iter = inputVector.begin();
+                               iter != inputVector.end();
+                               iter++) {
+
+    strToCheck = (string)*iter;
+    forbiddenChars = strToCheck.find_first_of(charsToExclude);
+
+    // Add the value if there are no forbidden characters.
+    if (forbiddenChars == std::string::npos) {
+      returnVector.push_back(*iter);
+    }
+  }
+  return returnVector;
+}
+// Return a string vector that contains only the valid values.
+vector<string> validWords(map<string,vector<string> > &inputVector,
+                          string inputKey) {
+	if (excludeAnyChars) {
+		return filterOutExcludedChars(inputVector[inputKey],excludedChars);
+	} else {
+		return inputVector[inputKey];
+	}
+}
+/// ////////////////////////////////////////////////////////////////////////////
 // Snowball poem creator.
 // string seedPhrase - Optional phrase to include in each snowball.
 bool createPoemSnowball(string seedPhrase) {
@@ -743,6 +781,16 @@ bool createPoemSnowball(string seedPhrase) {
     return false;
   }
 
+  // Pre-load often used vectors. These will always be used to start off poems,
+  //   so it makes sense to compute them now, and not again for each poem.
+  vector<string> startingWords;
+  if (seedPhrase == "") {
+    if (usePoemWordStart) {
+      startingWords = filterOutExcludedChars(wordsWithLength[poemWordStart],excludedChars);
+    } else {
+      startingWords = filterOutExcludedChars(wordsWithLength[1],excludedChars);
+    }
+  }
 
   // Vector to hold all the generated snowballs.
   vector<string> allSnowballs;
@@ -761,35 +809,9 @@ bool createPoemSnowball(string seedPhrase) {
     // seedPhrase does not exist.
     if (seedPhrase == "") {
 
-      // If we want to start from a higher word length than 1:
-      if (usePoemWordStart) {
-        randIndex = rand() % wordsWithLength[poemWordStart].size();
-        chosenWord = wordsWithLength[poemWordStart][randIndex];
-
-      // This is the normal default path.
-      } else {
-
-        // There are two approaches here.
-        // Choose which one to use at random.
-        unsigned int startMethod = rand() % 2 + 1;
-
-        switch (startMethod) {
-
-          // Select a random 1 letter word from {wordsWithLength}
-          case 1:
-            randIndex = rand() % wordsWithLength[1].size();
-            chosenWord = wordsWithLength[1][randIndex];
-            break;
-
-          // Select a 2 letter word, and use "o" as the first line
-          case 2:
-            randIndex = rand() % wordsWithLength[2].size();
-            chosenWord = wordsWithLength[2][randIndex];
-            theSnowball.push_back("o");
-            break;
-        }
-      }
-
+      // Select a random 1 letter word from {startingWords}
+      randIndex = rand() % startingWords.size();
+      chosenWord = startingWords[randIndex];
       theSnowball.push_back(chosenWord);
 
     // seedPhrase exists.
@@ -831,7 +853,7 @@ bool createPoemSnowball(string seedPhrase) {
 
           bool wordNotMatched = false;
           do {
-            unsigned int countOfMatched = wordsBackwards[chosenWord].size();
+            unsigned int countOfMatched = validWords(wordsBackwards,chosenWord).size();
 
             if (countOfMatched == 0) {
               wordNotMatched = true;
@@ -858,7 +880,7 @@ bool createPoemSnowball(string seedPhrase) {
               // Iterate forwards, use for loop so we can get the index.
               unsigned int iElement = 0;
               for (iElement = 0; iElement < allKeys.size(); iElement++) {
-                if (wordsBackwards[allKeys[iElement]].size() != 0) break;
+                if (validWords(wordsBackwards,allKeys[iElement]).size() != 0) break;
               }
 
               // We now know that all elements of {allKeys} from
@@ -882,8 +904,9 @@ bool createPoemSnowball(string seedPhrase) {
               }
 
               // Choose one of the values at random from the key.
-              randIndex = rand() % wordsBackwards[chosenKey].size();
-              chosenWord = wordsBackwards[chosenKey][randIndex];
+              vector<string> vwb = validWords(wordsBackwards,chosenKey);
+              randIndex = rand() % vwb.size();
+              chosenWord = vwb[randIndex];
 
               // Add the new word to the snowball vector.
               theSnowball.push_back(chosenWord);
@@ -911,7 +934,8 @@ bool createPoemSnowball(string seedPhrase) {
 
     // Find a random matching word in {wordsForwards}
     // Loop through the tree until it reaches a dead branch
-    while (wordsForwards[chosenWord].size() != 0) {
+
+    while (validWords(wordsForwards,chosenWord).size() != 0) {
       // Calculate all possible keys, e.g.
       // Snowball      = "i am all cold"
       // Possible keys = "i|am|all|cold"
@@ -936,7 +960,7 @@ bool createPoemSnowball(string seedPhrase) {
       unsigned int iElement = 0;
       unsigned int invalidKeyCount = 0;
       for (iElement = 0; iElement < allKeys.size(); iElement++) {
-        if (wordsForwards[allKeys[iElement]].size() != 0) break;
+        if (validWords(wordsForwards,allKeys[iElement]).size() != 0) break;
         invalidKeyCount++;
       }
 
@@ -970,8 +994,9 @@ bool createPoemSnowball(string seedPhrase) {
       }
 
       // Choose one of the values at random from the key.
-      randIndex = rand() % wordsForwards[chosenKey].size();
-      chosenWord = wordsForwards[chosenKey][randIndex];
+      vector<string> vwf = validWords(wordsForwards,chosenKey);
+      randIndex = rand() % vwf.size();
+      chosenWord = vwf[randIndex];
 
       // Add the new word to the snowball vector.
       theSnowball.push_back(chosenWord);
@@ -1085,7 +1110,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:s:i::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:s:i::p:r:l:L")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1133,6 +1158,16 @@ int main(int argc, char* argv[]) {
         poemWordEnd = (unsigned int)abs(atoi(optarg));
         if (poemWordEnd == 0) poemWordEnd = 1;
         if (poemWordEnd > 100) poemWordEnd = 100;
+        break;
+
+      // Characters to exclude (convert to lowercase).
+      case 'x':
+        excludeAnyChars = true;
+        excludedChars = optarg;
+        std::transform(excludedChars.begin(),
+                       excludedChars.end(),
+                       excludedChars.begin(),
+                       ::tolower);
         break;
 
       // Take seed phrases as input from a file.
@@ -1267,7 +1302,8 @@ int main(int argc, char* argv[]) {
 
   // Specify the preprocessed input file.
   // Check if "preProcessedFileName" is an existing file.
-  if (opt_p) {
+  // (Don't do this if we're creating a new one with -r)
+  if (opt_p && !opt_r) {
     ifstream inputFile(preProcessedFileName.c_str());
     if ( !inputFile.good() ) {
       outputToConsole("Specified preprocessed file not found: " + preProcessedFileName, ERROR);

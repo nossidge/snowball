@@ -1,5 +1,5 @@
 # Snowball Poem Generator
-Version 1.2 - 2013/09/05
+Version 1.3 - 2013/09/14
 
 by Paul Thompson - nossidge@gmail.com / snowballpoetry@gmail.com
 
@@ -199,6 +199,5 @@ characters, and the lexicon file could just be a different language. But
 as I don't personally speak any other language I won't be doing this.
 
 ### Other operating systems
-
 Currently Windows 7 only, but probably able to be converted easily enough.
 It should just be the file and directory code that needs looking at.

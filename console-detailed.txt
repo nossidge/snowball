@@ -3,7 +3,7 @@
 
 Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
-                [-P number] [-k number] [-b number] [-e number]
+                [-P number] [-k number] [-b number] [-e number] [-x chars]
                 [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
 
 ======== Most common options
@@ -118,6 +118,11 @@ only comes into play after the poem has been generated. It checks that the poem
 is long enough, and if it isn't the poem is ignored. You can uses the failure
 count -f option to specify how many failed poems to allow before throwing an
 error.
+
+-x aeiuy
+Exclude certain letters from generated poems. This lets you create lipogrammatic
+snowballs. For example, using the argument "aeiuy" a resulting poem might be:
+"o no god took forth worlds comfort", where "O" is the only vowel used.
 
 ======== Snowball seed phrases
 
