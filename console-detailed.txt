@@ -104,6 +104,10 @@ considered, as "lord spoke" and "lord lucan" use only one word as their key.
 This only really works with a value of 2, but it accepts values up to 10. 
 Larger keys work much better with a large corpus though, and keys greater than
 2 rarely produce anything at all.
+If a value of 0 is specified, the program will not use Markov chains at all.
+It will randomly select a 1 letter word, then a 2 letter word, then a 3 letter
+word, until it reaches the "ending word length", specified using the -e option.
+This usually produces drivel though, so use it wisely.
 
 -b4
 "Beginning word length" - Begin poems at a word length other than 1. If used

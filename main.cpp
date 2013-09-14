@@ -9,7 +9,7 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define VERSION "Version 1.3"
+#define VERSION "Version 1.31"
 #define DATE    "2013/09/14"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,12 +70,12 @@ unsigned int multiKeyPercentage = 70;
 unsigned int minKeySize = 1;
 
 // Begin poems at a word length other than 1.
-bool usePoemWordStart = false;
-unsigned int poemWordStart = 1;
+bool usePoemWordBegin = false;
+unsigned int poemWordBegin = 1;
 
 // Reject poems where last word is fewer than 'n' letters long.
 bool usePoemWordEnd = false;
-unsigned int poemWordEnd = 0;
+unsigned int poemWordEnd = 10;
 
 // Should we exclude any characters (for lipogram output).
 bool excludeAnyChars = false;
@@ -92,6 +92,11 @@ string lexiconFileName = "snowball-lexicon.txt";
 
 // The file to use to input preprocessed snowball phrases.
 string preProcessedFileName = "snowball-preprocessed.txt";
+
+// Which method of snowball generator should we use.
+//   Markov is more naturalistic‎, but random is sometimes interesting.
+bool generatorMarkov = true;
+bool generatorRandom = false;
 
 /// ////////////////////////////////////////////////////////////////////////////
 
@@ -785,11 +790,7 @@ bool createPoemSnowball(string seedPhrase) {
   //   so it makes sense to compute them now, and not again for each poem.
   vector<string> startingWords;
   if (seedPhrase == "") {
-    if (usePoemWordStart) {
-      startingWords = filterOutExcludedChars(wordsWithLength[poemWordStart],excludedChars);
-    } else {
-      startingWords = filterOutExcludedChars(wordsWithLength[1],excludedChars);
-    }
+    startingWords = filterOutExcludedChars(wordsWithLength[poemWordBegin],excludedChars);
   }
 
   // Vector to hold all the generated snowballs.
@@ -806,209 +807,223 @@ bool createPoemSnowball(string seedPhrase) {
     string chosenWord;
     unsigned int randIndex;
 
-    // seedPhrase does not exist.
-    if (seedPhrase == "") {
+    // Generate snowballs using markov chains.
+    //   Using {wordsForwards} and {wordsBackwards}.
+    if (generatorMarkov) {
 
-      // Select a random 1 letter word from {startingWords}
-      randIndex = rand() % startingWords.size();
-      chosenWord = startingWords[randIndex];
-      theSnowball.push_back(chosenWord);
+      // seedPhrase does not exist.
+      if (seedPhrase == "") {
 
-    // seedPhrase exists.
-    } else {
+        // Select a random word from {startingWords}
+        randIndex = rand() % startingWords.size();
+        chosenWord = startingWords[randIndex];
+        theSnowball.push_back(chosenWord);
 
-      // There are two valid possibilities for seedPhrase.
-      //   Type 1) Starting phrase: "i am new here"
-      //   Type 2) Middle phrase: "songs soothe"
-      //
-      // Split seedPhrase on the space chars.
-      // If seedPhrase[0].length() == 1, then it's Type 1.
-      // We need to build up the snowball as normal, so that we can
-      //   let the usual code fill out the rest.
-
-      vector<string> seedPhraseVector;
-      seedPhraseVector = split(seedPhrase,' ');
-      chosenWord = seedPhraseVector[0];
-
-      // Type 1) Starting phrase: "i am new here"
-      if (chosenWord.length() == 1) {
-        for (unsigned int i = 0; i < seedPhraseVector.size(); i++) {
-          theSnowball.push_back(seedPhraseVector[i]);
-        }
-
-      // Type 2) Middle phrase: "songs soothe"
+      // seedPhrase exists.
       } else {
-        // We have a word or words from the middle of the snowball.
-        // Fill in the start of the snowball backwards from there.
-        // Once we've filled that in, we can break to the normal code.
 
-        // Add the seed phrase to {theSnowball} vector.
-        for (int i = seedPhraseVector.size()-1; i >= 0; i--) {
-          theSnowball.push_back(seedPhraseVector[i]);
-        }
+        // There are two valid possibilities for seedPhrase.
+        //   Type 1) Starting phrase: "i am new here"
+        //   Type 2) Middle phrase: "songs soothe"
+        //
+        // Split seedPhrase on the space chars.
+        // If seedPhrase[0].length() == 1, then it's Type 1.
+        // We need to build up the snowball as normal, so that we can
+        //   let the usual code fill out the rest.
 
-        // If the first word is less than or equal to poemWordStart
-        //   (which defaults to 1), then don't look for smaller words.
-        if ( !(seedPhraseVector[0].length() <= poemWordStart) ) {
+        vector<string> seedPhraseVector;
+        seedPhraseVector = split(seedPhrase,' ');
+        chosenWord = seedPhraseVector[0];
 
-          bool wordNotMatched = false;
-          do {
-            unsigned int countOfMatched = validWords(wordsBackwards,chosenWord).size();
-
-            if (countOfMatched == 0) {
-              wordNotMatched = true;
-            } else {
-
-
-              /// THOUGHT: This stuff is very similar to the Forward
-              ///          Snowballs stuff below. Could this be gracefully
-              ///          split out to a separate function?
-              vector<string> allKeys;
-              if (theSnowball.size() == 1) {
-                allKeys.push_back(chosenWord);
-              } else {
-                for (unsigned int i=0; i<theSnowball.size(); i++) {
-                  string aSingleKey;
-                  for (unsigned int j=theSnowball.size(); j>i; j--) {
-                    aSingleKey = aSingleKey + theSnowball[j-1] + "|";
-                  } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
-                  allKeys.push_back(aSingleKey);
-                }
-              }
-
-              // Determine the longest key that returns a value.
-              // Iterate forwards, use for loop so we can get the index.
-              unsigned int iElement = 0;
-              for (iElement = 0; iElement < allKeys.size(); iElement++) {
-                if (validWords(wordsBackwards,allKeys[iElement]).size() != 0) break;
-              }
-
-              // We now know that all elements of {allKeys} from
-              //   (iElement) to (allKeys.size()-1) are valid.
-              // Loop through the valid elements to select the chosen key.
-
-              // Default to the single word key.
-              string chosenKey = allKeys[allKeys.size()-1];
-
-              // Loop through the multi-word keys and randomly choose one.
-              if (allKeys.size() > 1) {
-                for (unsigned int i = iElement; i < allKeys.size()-1; i++) {
-                  unsigned int randNumber = rand() % 100 + 1;
-                  // Use percentage variable to determine priority of the more
-                  //   complex keys over the shorter ones.
-                  if (randNumber <= multiKeyPercentage) {
-                    chosenKey = allKeys[i];
-                    break;
-                  }
-                }
-              }
-
-              // Choose one of the values at random from the key.
-              vector<string> vwb = validWords(wordsBackwards,chosenKey);
-              randIndex = rand() % vwb.size();
-              chosenWord = vwb[randIndex];
-
-              // Add the new word to the snowball vector.
-              theSnowball.push_back(chosenWord);
-              ///   ^ THOUGHT ^
-
-
-            }
-          } while (!wordNotMatched && chosenWord.length() > poemWordStart);
-
-          // If there was an error in the process, then abandon this poem.
-          if (wordNotMatched) {
-            poemCountFailure++;
-            continue;
+        // Type 1) Starting phrase: "i am new here"
+        if (chosenWord.length() == 1) {
+          for (unsigned int i = 0; i < seedPhraseVector.size(); i++) {
+            theSnowball.push_back(seedPhraseVector[i]);
           }
 
-          // Because we looped backwards, we now need to reverse the vector.
-          std::reverse(theSnowball.begin(), theSnowball.end());
+        // Type 2) Middle phrase: "songs soothe"
+        } else {
+          // We have a word or words from the middle of the snowball.
+          // Fill in the start of the snowball backwards from there.
+          // Once we've filled that in, we can break to the normal code.
 
+          // Add the seed phrase to {theSnowball} vector.
+          for (int i = seedPhraseVector.size()-1; i >= 0; i--) {
+            theSnowball.push_back(seedPhraseVector[i]);
+          }
+
+          // If the first word is less than or equal to poemWordBegin
+          //   (which defaults to 1), then don't look for smaller words.
+          if ( !(seedPhraseVector[0].length() <= poemWordBegin) ) {
+
+            bool wordNotMatched = false;
+            do {
+              unsigned int countOfMatched = validWords(wordsBackwards,chosenWord).size();
+
+              if (countOfMatched == 0) {
+                wordNotMatched = true;
+              } else {
+
+
+                /// THOUGHT: This stuff is very similar to the Forward
+                ///          Snowballs stuff below. Could this be gracefully
+                ///          split out to a separate function?
+                vector<string> allKeys;
+                if (theSnowball.size() == 1) {
+                  allKeys.push_back(chosenWord);
+                } else {
+                  for (unsigned int i=0; i<theSnowball.size(); i++) {
+                    string aSingleKey;
+                    for (unsigned int j=theSnowball.size(); j>i; j--) {
+                      aSingleKey = aSingleKey + theSnowball[j-1] + "|";
+                    } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
+                    allKeys.push_back(aSingleKey);
+                  }
+                }
+
+                // Determine the longest key that returns a value.
+                // Iterate forwards, use for loop so we can get the index.
+                unsigned int iElement = 0;
+                for (iElement = 0; iElement < allKeys.size(); iElement++) {
+                  if (validWords(wordsBackwards,allKeys[iElement]).size() != 0) break;
+                }
+
+                // We now know that all elements of {allKeys} from
+                //   (iElement) to (allKeys.size()-1) are valid.
+                // Loop through the valid elements to select the chosen key.
+
+                // Default to the single word key.
+                string chosenKey = allKeys[allKeys.size()-1];
+
+                // Loop through the multi-word keys and randomly choose one.
+                if (allKeys.size() > 1) {
+                  for (unsigned int i = iElement; i < allKeys.size()-1; i++) {
+                    unsigned int randNumber = rand() % 100 + 1;
+                    // Use percentage variable to determine priority of the more
+                    //   complex keys over the shorter ones.
+                    if (randNumber <= multiKeyPercentage) {
+                      chosenKey = allKeys[i];
+                      break;
+                    }
+                  }
+                }
+
+                // Choose one of the values at random from the key.
+                vector<string> vwb = validWords(wordsBackwards,chosenKey);
+                randIndex = rand() % vwb.size();
+                chosenWord = vwb[randIndex];
+
+                // Add the new word to the snowball vector.
+                theSnowball.push_back(chosenWord);
+                ///   ^ THOUGHT ^
+
+
+              }
+            } while (!wordNotMatched && chosenWord.length() > poemWordBegin);
+
+            // If there was an error in the process, then abandon this poem.
+            if (wordNotMatched) {
+              poemCountFailure++;
+              continue;
+            }
+
+            // Because we looped backwards, we now need to reverse the vector.
+            std::reverse(theSnowball.begin(), theSnowball.end());
+
+          }
         }
+
+        chosenWord = seedPhraseVector.back();
       }
 
-      chosenWord = seedPhraseVector.back();
-    }
 
-
-    // Find a random matching word in {wordsForwards}
-    // Loop through the tree until it reaches a dead branch
-
-    while (validWords(wordsForwards,chosenWord).size() != 0) {
-      // Calculate all possible keys, e.g.
-      // Snowball      = "i am all cold"
-      // Possible keys = "i|am|all|cold"
-      //                   "am|all|cold"
-      //                      "all|cold"
-      //                          "cold"
-      vector<string> allKeys;
-      if (theSnowball.size() == 1) {
-        allKeys.push_back(chosenWord);
-      } else {
-        for (unsigned int i=0; i<theSnowball.size(); i++) {
-          string aSingleKey;
-          for (unsigned int j=i; j<theSnowball.size(); j++) {
-            aSingleKey = aSingleKey + theSnowball[j] + "|";
-          } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
-          allKeys.push_back(aSingleKey);
+      // Find a random matching word in {wordsForwards}
+      // Loop through the tree until it reaches a dead branch
+      while (validWords(wordsForwards,chosenWord).size() != 0) {
+        // Calculate all possible keys, e.g.
+        // Snowball      = "i am all cold"
+        // Possible keys = "i|am|all|cold"
+        //                   "am|all|cold"
+        //                      "all|cold"
+        //                          "cold"
+        vector<string> allKeys;
+        if (theSnowball.size() == 1) {
+          allKeys.push_back(chosenWord);
+        } else {
+          for (unsigned int i=0; i<theSnowball.size(); i++) {
+            string aSingleKey;
+            for (unsigned int j=i; j<theSnowball.size(); j++) {
+              aSingleKey = aSingleKey + theSnowball[j] + "|";
+            } aSingleKey.erase(aSingleKey.find_last_not_of("|")+1);
+            allKeys.push_back(aSingleKey);
+          }
         }
-      }
 
-      // Determine the longest key that returns a value.
-      // Iterate forwards, use for loop so we can get the index.
-      unsigned int iElement = 0;
-      unsigned int invalidKeyCount = 0;
-      for (iElement = 0; iElement < allKeys.size(); iElement++) {
-        if (validWords(wordsForwards,allKeys[iElement]).size() != 0) break;
-        invalidKeyCount++;
-      }
-
-      // If the key is not big enough for minKeySize, then stop
-      //   adding to the poem, and output what is there.
-      if ( (allKeys.size() - invalidKeyCount) < minKeySize) {
-        if (theSnowball.size() > minKeySize) {
-          break;
+        // Determine the longest key that returns a value.
+        // Iterate forwards, use for loop so we can get the index.
+        unsigned int iElement = 0;
+        unsigned int invalidKeyCount = 0;
+        for (iElement = 0; iElement < allKeys.size(); iElement++) {
+          if (validWords(wordsForwards,allKeys[iElement]).size() != 0) break;
+          invalidKeyCount++;
         }
-      }
 
-      // We now know that all elements of {allKeys} from
-      //   (iElement) to (allKeys.size()-1) are valid.
-      // Loop through the valid elements to select the chosen key.
-
-      // Default to the single word key.
-      string chosenKey = allKeys[allKeys.size()-1];
-
-      // Loop through the multi-word keys and randomly choose one.
-      if (allKeys.size() > 1) {
-        for (unsigned int i = iElement; i <= allKeys.size()-2; i++) {
-          unsigned int randNumber = rand() % 100 + 1;
-
-          // Use percentage variable to determine priority of the more
-          //   complex keys over the shorter ones.
-          if (randNumber <= multiKeyPercentage) {
-            chosenKey = allKeys[i];
+        // If the key is not big enough for minKeySize, then stop
+        //   adding to the poem, and output what is there.
+        if ( (allKeys.size() - invalidKeyCount) < minKeySize) {
+          if (theSnowball.size() > minKeySize) {
             break;
           }
         }
+
+        // We now know that all elements of {allKeys} from
+        //   (iElement) to (allKeys.size()-1) are valid.
+        // Loop through the valid elements to select the chosen key.
+
+        // Default to the single word key.
+        string chosenKey = allKeys[allKeys.size()-1];
+
+        // Loop through the multi-word keys and randomly choose one.
+        if (allKeys.size() > 1) {
+          for (unsigned int i = iElement; i <= allKeys.size()-2; i++) {
+            unsigned int randNumber = rand() % 100 + 1;
+
+            // Use percentage variable to determine priority of the more
+            //   complex keys over the shorter ones.
+            if (randNumber <= multiKeyPercentage) {
+              chosenKey = allKeys[i];
+              break;
+            }
+          }
+        }
+
+        // Choose one of the values at random from the key.
+        vector<string> vwf = validWords(wordsForwards,chosenKey);
+        randIndex = rand() % vwf.size();
+        chosenWord = vwf[randIndex];
+
+        // Add the new word to the snowball vector.
+        theSnowball.push_back(chosenWord);
       }
 
-      // Choose one of the values at random from the key.
-      vector<string> vwf = validWords(wordsForwards,chosenKey);
-      randIndex = rand() % vwf.size();
-      chosenWord = vwf[randIndex];
-
-      // Add the new word to the snowball vector.
-      theSnowball.push_back(chosenWord);
+      // If we require a poem to be at least a certain length, then
+      //   the poem is considered a failure if it is too short.
+      if (usePoemWordEnd) {
+        unsigned int minimumWordCount = (1 + poemWordEnd - poemWordBegin);
+        if ( theSnowball.size() < minimumWordCount ) {
+          poemCountFailure++;
+          continue;
+        }
+      }
     }
 
-    // If we require a poem to be at least a certain length, then
-    //   the poem is considered a failure if it is too short.
-    if (usePoemWordEnd) {
-      unsigned int minimumWordCount = (1 + poemWordEnd - poemWordStart);
-      if ( theSnowball.size() < minimumWordCount ) {
-        poemCountFailure++;
-        continue;
+    // Generate snowballs using random correct-letter words.
+    //   Using {wordsWithLength}.
+    if (generatorRandom) {
+      for (unsigned int i = 1; i <= poemWordEnd; i++) {
+        randIndex = rand() % wordsWithLength[i].size();
+        chosenWord = wordsWithLength[i][randIndex];
+        theSnowball.push_back(chosenWord);
       }
     }
 
@@ -1141,15 +1156,21 @@ int main(int argc, char* argv[]) {
       // Specify the minimum word key size to use.
       case 'k':
         minKeySize = (unsigned int)abs(atoi(optarg));
-        if (minKeySize <= 0) minKeySize = 1;
         if (minKeySize > 10) minKeySize = 10;
+
+        // If the key is 0, then pick words at random
+        //   instead of using Markov chains.
+        if (minKeySize == 0) {
+          generatorMarkov = false;
+          generatorRandom = true;
+        };
         break;
 
       // Begin poems at a word length other than 1.
       case 'b':
-        usePoemWordStart = true;
-        poemWordStart = (unsigned int)abs(atoi(optarg));
-        if (poemWordStart == 0) poemWordStart = 1;
+        usePoemWordBegin = true;
+        poemWordBegin = (unsigned int)abs(atoi(optarg));
+        if (poemWordBegin == 0) poemWordBegin = 1;
         break;
 
       // Reject poems where last word is fewer than 'n' letters long.
@@ -1333,8 +1354,8 @@ int main(int argc, char* argv[]) {
   ssProgramStatus << ">> poemTarget: " << poemTarget << endl;
   ssProgramStatus << ">> poemFailureMax: " << poemFailureMax << endl;
   ssProgramStatus << ">> multiKeyPercentage: " << multiKeyPercentage << endl;
-  ssProgramStatus << ">> usePoemWordStart: " << usePoemWordStart << endl;
-  ssProgramStatus << ">> poemWordStart: " << poemWordStart << endl;
+  ssProgramStatus << ">> usePoemWordBegin: " << usePoemWordBegin << endl;
+  ssProgramStatus << ">> poemWordBegin: " << poemWordBegin << endl;
   ssProgramStatus << ">> usePoemWordEnd: " << usePoemWordEnd << endl;
   ssProgramStatus << ">> poemWordEnd: " << poemWordEnd << endl;
   ssProgramStatus << ">> seedPhrasesFileName: " << seedPhrasesFileName << endl;
