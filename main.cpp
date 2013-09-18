@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define VERSION "Version 1.31"
-#define DATE    "2013/09/14"
+#define VERSION "Version 1.32"
+#define DATE    "2013/09/18"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,12 +45,12 @@ bool outputIsQuiet = false;
 
 // Output generated snowball poems to stdout INSTEAD OF to separate files.
 //   (overides the "outputIsVerbose" option)
-bool outputIsPoems = false;
+bool outputPoemsOnly = false;
 
 // Is the input raw English text? (If not, then we'll use a file containing
 //   previously discovered snowballing phrases)
 bool processRawText = false;
-string directoryRawInput = "input";
+string directoryRawInput = "";
 
 // Should the temporary vectors be saved to disk as text files?
 bool debugVectorsSaveToFile = false;
@@ -69,8 +69,13 @@ unsigned int multiKeyPercentage = 70;
 // Specify a minimum word key size to use. Default is 1.
 unsigned int minKeySize = 1;
 
-// Begin poems at a word length other than 1.
-bool usePoemWordBegin = false;
+// Which method of snowball generator should we use.
+//   Markov is more naturalistic‎, but random is sometimes interesting.
+//   Only use "generatorRandom" if "minKeySize" equals 0.
+bool generatorMarkov = true;
+bool generatorRandom = false;
+
+// Begin poems at a certain word length.
 unsigned int poemWordBegin = 1;
 
 // Reject poems where last word is fewer than 'n' letters long.
@@ -81,8 +86,7 @@ unsigned int poemWordEnd = 10;
 bool excludeAnyChars = false;
 string excludedChars = "";
 
-// Program option to read in seed phrases from a file. Default is false.
-// If true, we also need the name of the input file.
+// Seed phrases. File name and the delimiter between each.
 string seedPhrasesFileName = "";
 char seedPhraseDelim = '\n';
 
@@ -92,11 +96,6 @@ string lexiconFileName = "snowball-lexicon.txt";
 
 // The file to use to input preprocessed snowball phrases.
 string preProcessedFileName = "snowball-preprocessed.txt";
-
-// Which method of snowball generator should we use.
-//   Markov is more naturalistic‎, but random is sometimes interesting.
-bool generatorMarkov = true;
-bool generatorRandom = false;
 
 /// ////////////////////////////////////////////////////////////////////////////
 
@@ -128,9 +127,12 @@ map<string,vector<string> > wordsBackwards;
 
 // Don't output ever if (outputIsQuiet)
 // Only output DEBUG stuff if (outputIsVerbose)
-enum MsgType { STANDARD, ERROR, DEBUG };
+// If (outputPoemsOnly), only output POEMs
+enum MsgType { STANDARD, ERROR, DEBUG, POEM };
 void outputToConsole(string message, MsgType type) {
-  if (!outputIsQuiet) {
+  if (outputPoemsOnly && (type == POEM) ) {
+    cout << message << endl;
+  } else if (!outputPoemsOnly && !outputIsQuiet) {
     if ( (type == STANDARD) || (type == DEBUG && outputIsVerbose) ) {
       cout << message << endl;
     } else if (type == ERROR) {
@@ -139,11 +141,14 @@ void outputToConsole(string message, MsgType type) {
   }
 }
 void outputToConsoleVersion(MsgType type) {
-  outputToConsole("", type);
-  outputToConsole("  Snowball Poem Generator - " VERSION " - " DATE, type);
-  outputToConsole("  by Paul Thompson - nossidge@gmail.com", type);
-  outputToConsole("  Project Email    - snowballpoetry@gmail.com", type);
-  outputToConsole("  Project Homepage - https://github.com/nossidge/snowball", type);
+  ostringstream ss;
+  ss <<
+    "\n  Snowball Poem Generator - " VERSION " - " DATE
+    "\n  by Paul Thompson - nossidge@gmail.com"
+    "\n  Project Email    - snowballpoetry@gmail.com"
+    "\n  Project Homepage - https://github.com/nossidge/snowball"
+  ;
+  outputToConsole(ss.str(),type);
 }
 void outputToConsoleUsage(MsgType type) {
   ostringstream ss;
@@ -220,17 +225,16 @@ bool findInVector(vector<string> &haystack, string needle) {
   return (std::binary_search(haystack.begin(), haystack.end(), needle));
 }
 /// ////////////////////////////////////////////////////////////////////////////
-void vectorSortAndDedupe(vector<string> &inputVector) {
+void sortAndDedupe(vector<string> &inputVector) {
   vector<string>::iterator iter;
   std::sort (inputVector.begin(), inputVector.end());
   iter = std::unique (inputVector.begin(), inputVector.end());
   inputVector.resize( std::distance(inputVector.begin(),iter) );
 }
-
-void mapSortAndDedupe(map<int, vector<string> > &inputVector) {
+void sortAndDedupe(map<int, vector<string> > &inputVector) {
   for(map<int, vector<string> >::iterator iter = inputVector.begin();
                                           iter != inputVector.end(); ++iter) {
-    vectorSortAndDedupe(iter->second);
+    sortAndDedupe(iter->second);
   }
 }
 /// ////////////////////////////////////////////////////////////////////////////
@@ -385,24 +389,8 @@ bool importLexicon(vector<string> &inputVector, string fileName) {
   }
   inputFile.close();
 
-  vectorSortAndDedupe(wordsLexicon);
+  sortAndDedupe(wordsLexicon);
   return true;
-}
-/// ////////////////////////////////////////////////////////////////////////////
-void populateLengthMap(vector< vector<string> > &inputVector,
-                       map<int,vector<string> > &outputMap,
-                       string fileName) {
-
-  outputToConsole("populateLengthMap: " + fileName, DEBUG);
-
-  for(unsigned int i=0; i < inputVector.size() - 1; i++) {
-    string firstWord = inputVector[i][0];
-    int wordLength = firstWord.length();
-    outputMap[wordLength].push_back(firstWord);
-  }
-
-  // Print the map to a file
-  mapSaveToFileKeyHeader(outputMap,fileName);
 }
 /// ////////////////////////////////////////////////////////////////////////////
 /// This function reads an unprocessed natural language text file (specified
@@ -533,12 +521,12 @@ string loadInputFile(string inputFileName) {
 
   // Write {wordsNotInLexicon} to a file, if necessary.
   if (useLexiconFile && debugVectorsSaveToFile) {
-    vectorSortAndDedupe(wordsNotInLexicon);
+    sortAndDedupe(wordsNotInLexicon);
     vectorSaveToFile(wordsNotInLexicon,"output-wordsNotInLexicon.txt",true);
   }
 
   // Sort the raw snowball vector.
-  vectorSortAndDedupe(rawSnowball);
+  sortAndDedupe(rawSnowball);
 
   // Save the raw snowball vector to a temporary "pro-" file.
   stringstream ss;
@@ -604,7 +592,7 @@ bool openInputPreprocessed(string fileName) {
   inputFile.close();
 
   // Sort and dedupe the wordsWithLength map.
-  mapSortAndDedupe(wordsWithLength);
+  sortAndDedupe(wordsWithLength);
 
   return true;
 }
@@ -679,7 +667,7 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
   }
 
   // Sort and dedupe the {allInputLines} vector
-  vectorSortAndDedupe(allInputLines);
+  sortAndDedupe(allInputLines);
 
 
   /*
@@ -719,7 +707,7 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
       }
     }
   }
-  vectorSortAndDedupe(inputPreprocessed);
+  sortAndDedupe(inputPreprocessed);
   vectorSaveToFile(inputPreprocessed,fileNameOut,false);
 
   return true;
@@ -749,13 +737,21 @@ vector<string> filterOutExcludedChars(vector<string> &inputVector,
   return returnVector;
 }
 // Return a string vector that contains only the valid values.
-vector<string> validWords(map<string,vector<string> > &inputVector,
-                          string inputKey) {
-	if (excludeAnyChars) {
-		return filterOutExcludedChars(inputVector[inputKey],excludedChars);
-	} else {
-		return inputVector[inputKey];
-	}
+vector<string> validWords(vector<string> &inputVector) {
+  if (excludeAnyChars) {
+    return filterOutExcludedChars(inputVector,excludedChars);
+  } else {
+    return inputVector;
+  }
+}
+/// ////////////////////////////////////////////////////////////////////////////
+// Return a random element of a vector.
+// Ensure it is valid using the (validWords) function.
+string randomValidElement(vector<string> &inputVector) {
+  vector<string> valid = validWords(inputVector);
+  unsigned int randIndex = rand() % valid.size();
+  string chosenElement = valid[randIndex];
+  return chosenElement;
 }
 /// ////////////////////////////////////////////////////////////////////////////
 // Snowball poem creator.
@@ -764,7 +760,7 @@ bool createPoemSnowball(string seedPhrase) {
   string fileName;
 
   // Only need the file name if it's going to be written to a file.
-  if (!outputIsPoems) {
+  if (!outputPoemsOnly) {
 
     // Add the seedPhrase to the file name, if necessary.
     string fileNameAppend = "";
@@ -782,7 +778,25 @@ bool createPoemSnowball(string seedPhrase) {
   //   least a little bit valid.
   if ( (wordsWithLength[1].size() == 0) || (wordsWithLength[2].size() == 0) ||
        (wordsForwards.size() == 0) || (wordsBackwards.size() == 0) ) {
-    outputToConsole("Snowball input files contain invalid (or no) data.", ERROR);
+    outputToConsole("Snowball input files contain invalid (or no) data.\n", ERROR);
+    return false;
+  }
+
+  // Make sure the "poemWordBegin" value isn't too high to be useful.
+  if ( wordsWithLength[poemWordBegin].size() == 0 ) {
+    stringstream ss;
+    ss << "Beginning word length \"" << poemWordBegin
+       << "\" is too high for your input." << endl;
+    outputToConsole(ss.str(), ERROR);
+    return false;
+  }
+
+  // Make sure the "excludedChars" isn't too restrictive.
+  if ( validWords(wordsWithLength[poemWordBegin]).size() == 0 ) {
+    stringstream ss;
+    ss << "The exclude characters string \"" << excludedChars
+       << "\" is too restrictive for your input." << endl;
+    outputToConsole(ss.str(), ERROR);
     return false;
   }
 
@@ -790,7 +804,7 @@ bool createPoemSnowball(string seedPhrase) {
   //   so it makes sense to compute them now, and not again for each poem.
   vector<string> startingWords;
   if (seedPhrase == "") {
-    startingWords = filterOutExcludedChars(wordsWithLength[poemWordBegin],excludedChars);
+    startingWords = validWords(wordsWithLength[poemWordBegin]);
   }
 
   // Vector to hold all the generated snowballs.
@@ -803,9 +817,7 @@ bool createPoemSnowball(string seedPhrase) {
 
     // Vector to hold all the current snowball.
     vector<string> theSnowball;
-
     string chosenWord;
-    unsigned int randIndex;
 
     // Generate snowballs using markov chains.
     //   Using {wordsForwards} and {wordsBackwards}.
@@ -815,8 +827,7 @@ bool createPoemSnowball(string seedPhrase) {
       if (seedPhrase == "") {
 
         // Select a random word from {startingWords}
-        randIndex = rand() % startingWords.size();
-        chosenWord = startingWords[randIndex];
+        chosenWord = randomValidElement(startingWords);
         theSnowball.push_back(chosenWord);
 
       // seedPhrase exists.
@@ -858,7 +869,7 @@ bool createPoemSnowball(string seedPhrase) {
 
             bool wordNotMatched = false;
             do {
-              unsigned int countOfMatched = validWords(wordsBackwards,chosenWord).size();
+              unsigned int countOfMatched = validWords(wordsBackwards[chosenWord]).size();
 
               if (countOfMatched == 0) {
                 wordNotMatched = true;
@@ -885,7 +896,7 @@ bool createPoemSnowball(string seedPhrase) {
                 // Iterate forwards, use for loop so we can get the index.
                 unsigned int iElement = 0;
                 for (iElement = 0; iElement < allKeys.size(); iElement++) {
-                  if (validWords(wordsBackwards,allKeys[iElement]).size() != 0) break;
+                  if (validWords(wordsBackwards[allKeys[iElement]]).size() != 0) break;
                 }
 
                 // We now know that all elements of {allKeys} from
@@ -909,9 +920,8 @@ bool createPoemSnowball(string seedPhrase) {
                 }
 
                 // Choose one of the values at random from the key.
-                vector<string> vwb = validWords(wordsBackwards,chosenKey);
-                randIndex = rand() % vwb.size();
-                chosenWord = vwb[randIndex];
+                chosenWord = randomValidElement(wordsBackwards[chosenKey]);
+
 
                 // Add the new word to the snowball vector.
                 theSnowball.push_back(chosenWord);
@@ -939,7 +949,7 @@ bool createPoemSnowball(string seedPhrase) {
 
       // Find a random matching word in {wordsForwards}
       // Loop through the tree until it reaches a dead branch
-      while (validWords(wordsForwards,chosenWord).size() != 0) {
+      while (validWords(wordsForwards[chosenWord]).size() != 0) {
         // Calculate all possible keys, e.g.
         // Snowball      = "i am all cold"
         // Possible keys = "i|am|all|cold"
@@ -964,7 +974,7 @@ bool createPoemSnowball(string seedPhrase) {
         unsigned int iElement = 0;
         unsigned int invalidKeyCount = 0;
         for (iElement = 0; iElement < allKeys.size(); iElement++) {
-          if (validWords(wordsForwards,allKeys[iElement]).size() != 0) break;
+          if (validWords(wordsForwards[allKeys[iElement]]).size() != 0) break;
           invalidKeyCount++;
         }
 
@@ -998,9 +1008,7 @@ bool createPoemSnowball(string seedPhrase) {
         }
 
         // Choose one of the values at random from the key.
-        vector<string> vwf = validWords(wordsForwards,chosenKey);
-        randIndex = rand() % vwf.size();
-        chosenWord = vwf[randIndex];
+        chosenWord = randomValidElement(wordsForwards[chosenKey]);
 
         // Add the new word to the snowball vector.
         theSnowball.push_back(chosenWord);
@@ -1021,8 +1029,7 @@ bool createPoemSnowball(string seedPhrase) {
     //   Using {wordsWithLength}.
     if (generatorRandom) {
       for (unsigned int i = 1; i <= poemWordEnd; i++) {
-        randIndex = rand() % wordsWithLength[i].size();
-        chosenWord = wordsWithLength[i][randIndex];
+        chosenWord = randomValidElement(wordsWithLength[i]);
         theSnowball.push_back(chosenWord);
       }
     }
@@ -1042,13 +1049,13 @@ bool createPoemSnowball(string seedPhrase) {
   // Sort all the poems alphabetically.
   // This will also get rid of duplicates, although with a large
   //   preprocessed corpus file it's unlikely there will be many.
-  vectorSortAndDedupe(allSnowballs);
+  sortAndDedupe(allSnowballs);
 
-  // If the option "outputIsPoems" is true then:
+  // If the option "outputPoemsOnly" is true then:
   // Write the generated snowball poems to stdout INSTEAD OF to a file.
-  if (outputIsPoems) {
+  if (outputPoemsOnly) {
     for(unsigned int i=0; i < allSnowballs.size(); i++) {
-      outputToConsole(allSnowballs[i], STANDARD);
+      outputToConsole(allSnowballs[i], POEM);
     }
 
   } else {
@@ -1150,45 +1157,28 @@ int main(int argc, char* argv[]) {
       // Specify the multi-key percentage.
       case 'P':
         multiKeyPercentage = (unsigned int)abs(atoi(optarg));
-        if (multiKeyPercentage > 100) multiKeyPercentage = 100;
         break;
 
       // Specify the minimum word key size to use.
       case 'k':
         minKeySize = (unsigned int)abs(atoi(optarg));
-        if (minKeySize > 10) minKeySize = 10;
-
-        // If the key is 0, then pick words at random
-        //   instead of using Markov chains.
-        if (minKeySize == 0) {
-          generatorMarkov = false;
-          generatorRandom = true;
-        };
         break;
 
       // Begin poems at a word length other than 1.
       case 'b':
-        usePoemWordBegin = true;
         poemWordBegin = (unsigned int)abs(atoi(optarg));
-        if (poemWordBegin == 0) poemWordBegin = 1;
         break;
 
       // Reject poems where last word is fewer than 'n' letters long.
       case 'e':
         usePoemWordEnd = true;
         poemWordEnd = (unsigned int)abs(atoi(optarg));
-        if (poemWordEnd == 0) poemWordEnd = 1;
-        if (poemWordEnd > 100) poemWordEnd = 100;
         break;
 
       // Characters to exclude (convert to lowercase).
       case 'x':
         excludeAnyChars = true;
         excludedChars = optarg;
-        std::transform(excludedChars.begin(),
-                       excludedChars.end(),
-                       excludedChars.begin(),
-                       ::tolower);
         break;
 
       // Take seed phrases as input from a file.
@@ -1258,6 +1248,23 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
+  // Validation of inputs.
+  if (poemWordBegin == 0) poemWordBegin = 1;
+  if (poemWordEnd == 0) poemWordEnd = 1;
+  if (poemWordEnd > 100) poemWordEnd = 100;
+  if (multiKeyPercentage > 100) multiKeyPercentage = 100;
+  if (minKeySize > 10) minKeySize = 10;
+  if (minKeySize == 0) {
+    // If the key is 0, then pick words at random
+    //   instead of using Markov chains.
+    generatorMarkov = false;
+    generatorRandom = true;
+  }
+  std::transform(excludedChars.begin(),
+                 excludedChars.end(),
+                 excludedChars.begin(),
+                 ::tolower);
+
 
   /// Handle the actual use of the options
 
@@ -1285,7 +1292,7 @@ int main(int argc, char* argv[]) {
   outputIsQuiet = opt_q;
 
   // Write the generated snowball poems to stdout INSTEAD OF to separate files.
-  outputIsPoems = opt_o;
+  outputPoemsOnly = opt_o;
 
   // Write program information to standard output.
   outputIsVerbose = opt_v;
@@ -1344,25 +1351,26 @@ int main(int argc, char* argv[]) {
   }
 
   // Debug state of the program due to the options.
-  ostringstream ssProgramStatus;
-  ssProgramStatus << ">> outputIsVerbose: " << outputIsVerbose << endl;
-  ssProgramStatus << ">> outputIsQuiet: " << outputIsQuiet << endl;
-  ssProgramStatus << ">> outputIsPoems: " << outputIsPoems << endl;
-  ssProgramStatus << ">> processRawText: " << processRawText << endl;
-  ssProgramStatus << ">> directoryRawInput: " << directoryRawInput << endl;
-  ssProgramStatus << ">> debugVectorsSaveToFile: " << debugVectorsSaveToFile << endl;
-  ssProgramStatus << ">> poemTarget: " << poemTarget << endl;
-  ssProgramStatus << ">> poemFailureMax: " << poemFailureMax << endl;
-  ssProgramStatus << ">> multiKeyPercentage: " << multiKeyPercentage << endl;
-  ssProgramStatus << ">> usePoemWordBegin: " << usePoemWordBegin << endl;
-  ssProgramStatus << ">> poemWordBegin: " << poemWordBegin << endl;
-  ssProgramStatus << ">> usePoemWordEnd: " << usePoemWordEnd << endl;
-  ssProgramStatus << ">> poemWordEnd: " << poemWordEnd << endl;
-  ssProgramStatus << ">> seedPhrasesFileName: " << seedPhrasesFileName << endl;
-  ssProgramStatus << ">> useLexiconFile: " << useLexiconFile << endl;
-  ssProgramStatus << ">> lexiconFileName: " << lexiconFileName << endl;
-  ssProgramStatus << ">> preProcessedFileName: " << preProcessedFileName << endl;
-  outputToConsole(ssProgramStatus.str(), DEBUG);
+  ss.str("");
+  ss <<  ">> outputIsVerbose: "        << outputIsVerbose
+    << "\n>> outputIsQuiet: "          << outputIsQuiet
+    << "\n>> outputPoemsOnly: "        << outputPoemsOnly
+    << "\n>> processRawText: "         << processRawText
+    << "\n>> directoryRawInput: "      << directoryRawInput
+    << "\n>> debugVectorsSaveToFile: " << debugVectorsSaveToFile
+    << "\n>> poemTarget: "             << poemTarget
+    << "\n>> poemFailureMax: "         << poemFailureMax
+    << "\n>> multiKeyPercentage: "     << multiKeyPercentage
+    << "\n>> poemWordBegin: "          << poemWordBegin
+    << "\n>> usePoemWordEnd: "         << usePoemWordEnd
+    << "\n>> poemWordEnd: "            << poemWordEnd
+    << "\n>> seedPhrasesFileName: "    << seedPhrasesFileName
+    << "\n>> useLexiconFile: "         << useLexiconFile
+    << "\n>> lexiconFileName: "        << lexiconFileName
+    << "\n>> preProcessedFileName: "   << preProcessedFileName
+    << "\n"
+  ;
+  outputToConsole(ss.str(), DEBUG);
 
 
   /// Cool. All inputs and options dealt with.
