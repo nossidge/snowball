@@ -9,7 +9,7 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define VERSION "Version 1.32"
+#define VERSION "Version 1.33"
 #define DATE    "2013/09/18"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +80,7 @@ unsigned int poemWordBegin = 1;
 
 // Reject poems where last word is fewer than 'n' letters long.
 bool usePoemWordEnd = false;
-unsigned int poemWordEnd = 10;
+unsigned int poemWordEnd = 8;
 
 // Should we exclude any characters (for lipogram output).
 bool excludeAnyChars = false;
@@ -747,11 +747,19 @@ vector<string> validWords(vector<string> &inputVector) {
 /// ////////////////////////////////////////////////////////////////////////////
 // Return a random element of a vector.
 // Ensure it is valid using the (validWords) function.
+// Return "" if no valid element.
 string randomValidElement(vector<string> &inputVector) {
+  string returnString;
+
   vector<string> valid = validWords(inputVector);
-  unsigned int randIndex = rand() % valid.size();
-  string chosenElement = valid[randIndex];
-  return chosenElement;
+  if (valid.size() == 0) {
+    returnString = "";
+    outputToConsole("No valid element found.",DEBUG);
+  } else {
+    unsigned int randIndex = rand() % valid.size();
+    returnString = valid[randIndex];
+  }
+  return returnString;
 }
 /// ////////////////////////////////////////////////////////////////////////////
 // Snowball poem creator.
@@ -772,6 +780,7 @@ bool createPoemSnowball(string seedPhrase) {
     fileName = ss.str();
     outputToConsole("createPoemSnowball: " + fileName, DEBUG);
   }
+
 
   // It's entirely possible for the code to get to this point without any useful
   //   data in the input vectors. Do some basic checks to see if they're at
@@ -799,6 +808,24 @@ bool createPoemSnowball(string seedPhrase) {
     outputToConsole(ss.str(), ERROR);
     return false;
   }
+
+  // If we are trying to find words between a begin length and an end length,
+  //   make sure there are valid vectors for all possible word lengths.
+  if (usePoemWordEnd || generatorRandom) {
+    for (unsigned int i = poemWordBegin; i <= poemWordEnd; i++) {
+      vector<string> checkVector = validWords(wordsWithLength[i]);
+      if (checkVector.size() == 0) {
+        stringstream ss;
+        ss << "You have specified to generate poems from \"" << poemWordBegin
+           << "\" letters long to \"" << poemWordEnd << "\" letters." << endl
+           << "However, there are no words in the corpus that are \"" << i
+           << "\" letters long." << endl;
+        outputToConsole(ss.str(), ERROR);
+        return false;
+      }
+    }
+  }
+
 
   // Pre-load often used vectors. These will always be used to start off poems,
   //   so it makes sense to compute them now, and not again for each poem.
@@ -922,7 +949,6 @@ bool createPoemSnowball(string seedPhrase) {
                 // Choose one of the values at random from the key.
                 chosenWord = randomValidElement(wordsBackwards[chosenKey]);
 
-
                 // Add the new word to the snowball vector.
                 theSnowball.push_back(chosenWord);
                 ///   ^ THOUGHT ^
@@ -1028,7 +1054,7 @@ bool createPoemSnowball(string seedPhrase) {
     // Generate snowballs using random correct-letter words.
     //   Using {wordsWithLength}.
     if (generatorRandom) {
-      for (unsigned int i = 1; i <= poemWordEnd; i++) {
+      for (unsigned int i = poemWordBegin; i <= poemWordEnd; i++) {
         chosenWord = randomValidElement(wordsWithLength[i]);
         theSnowball.push_back(chosenWord);
       }
@@ -1255,10 +1281,8 @@ int main(int argc, char* argv[]) {
   if (multiKeyPercentage > 100) multiKeyPercentage = 100;
   if (minKeySize > 10) minKeySize = 10;
   if (minKeySize == 0) {
-    // If the key is 0, then pick words at random
-    //   instead of using Markov chains.
-    generatorMarkov = false;
-    generatorRandom = true;
+    generatorMarkov = false;  // If the key is 0, pick words at random
+    generatorRandom = true;   //   instead of using Markov chains.
   }
   std::transform(excludedChars.begin(),
                  excludedChars.end(),
