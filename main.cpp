@@ -372,6 +372,30 @@ void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
   outputFile.close();
 }
 /// ////////////////////////////////////////////////////////////////////////////
+// Save all single word keys in {wordsBackwards} that are not
+//   keys in {wordsForwards}
+void saveToFileDeadBranches(string fileName) {
+  outputToConsole("saveToFileDeadBranches: " + fileName, MSG_DEBUG);
+
+  vector<string> deadBranches;
+
+  for(map<string,vector<string> >::iterator iter = wordsBackwards.begin();
+                                            iter != wordsBackwards.end();
+                                            ++iter) {
+    string theKey = iter->first;
+
+    // Make sure it doesn't contain any pipe chars.
+    std::size_t found = iter->first.find_first_of('|');
+    if (found == std::string::npos) {
+      if (wordsForwards[iter->first].size() == 0) {
+        deadBranches.push_back(iter->first);
+      }
+    }
+  }
+
+  vectorSaveToFile(deadBranches,fileName,false);
+}
+/// ////////////////////////////////////////////////////////////////////////////
 bool importLexicon(vector<string> &inputVector, string fileName) {
   outputToConsole("importLexicon: " + fileName, MSG_DEBUG);
 
@@ -1505,6 +1529,7 @@ int main(int argc, char* argv[]) {
     mapSaveToFileKeyHeader(wordsBackwards,"output-wordsBackwards-keyHeader.txt");
     mapSaveToFile(wordsBackwards,"output-wordsBackwards.txt");
     mapSaveToFileKeyHeader(wordsWithLength,"output-wordsWithLength.txt");
+    saveToFileDeadBranches("output-wordsDeadBranches.txt");
   }
 
 
