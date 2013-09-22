@@ -1,5 +1,4 @@
 # Snowball Poem Generator
-Version 1.31 - 2013/09/14
 
 by Paul Thompson - nossidge@gmail.com / snowballpoetry@gmail.com
 

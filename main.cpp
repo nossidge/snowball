@@ -9,14 +9,16 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define VERSION "Version 1.33"
-#define DATE    "2013/09/18"
+#define PROGRAM_VERSION "Version 1.34"
+#define PROGRAM_DATE    "2013/09/22"
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Windows file stuff
-#define PathSeparator "\\"
+#include <windows.h>
 #include <dirent.h>
+#define GetCurrentDir _getcwd
+#define PathSeparator "\\"
 
 #include <getopt.h>
 
@@ -32,6 +34,10 @@
 #include <map>
 
 using namespace std;
+
+string workingPath = "";
+string programPath = "";
+string programFile = "";
 
 /// ////////////////////////////////////////////////////////////////////////////
 
@@ -126,24 +132,35 @@ map<string,vector<string> > wordsBackwards;
 /// ////////////////////////////////////////////////////////////////////////////
 
 // Don't output ever if (outputIsQuiet)
-// Only output DEBUG stuff if (outputIsVerbose)
-// If (outputPoemsOnly), only output POEMs
-enum MsgType { STANDARD, ERROR, DEBUG, POEM };
+// Only output MSG_DEBUG stuff if (outputIsVerbose)
+// If (outputPoemsOnly), only output MSG_POEMs
+enum MsgType { MSG_STANDARD, MSG_ERROR, MSG_DEBUG, MSG_POEM };
 void outputToConsole(string message, MsgType type) {
-  if (outputPoemsOnly && (type == POEM) ) {
+  if (outputPoemsOnly && (type == MSG_POEM) ) {
     cout << message << endl;
   } else if (!outputPoemsOnly && !outputIsQuiet) {
-    if ( (type == STANDARD) || (type == DEBUG && outputIsVerbose) ) {
+    if ( (type == MSG_STANDARD) || (type == MSG_DEBUG && outputIsVerbose) ) {
       cout << message << endl;
-    } else if (type == ERROR) {
+    } else if (type == MSG_ERROR) {
       cerr << message << endl;
     }
   }
 }
+void outputToConsoleMajorError() {
+  ostringstream ss;
+  ss <<
+    "\n^^  This is a big yucky error!  ^^"
+    "\nI haven't been able to replicate it, so I'm not sure how to fix it."
+    "\nI'd be very grateful if you'd email me with details about this bug."
+    "\nAny help would be enormously appreciated. Thank you."
+    "\nEmail - snowballpoetry@gmail.com"
+  ;
+  outputToConsole(ss.str(),MSG_ERROR);
+}
 void outputToConsoleVersion(MsgType type) {
   ostringstream ss;
   ss <<
-    "\n  Snowball Poem Generator - " VERSION " - " DATE
+    "\n  Snowball Poem Generator - " PROGRAM_VERSION " - " PROGRAM_DATE
     "\n  by Paul Thompson - nossidge@gmail.com"
     "\n  Project Email    - snowballpoetry@gmail.com"
     "\n  Project Homepage - https://github.com/nossidge/snowball"
@@ -240,7 +257,7 @@ void sortAndDedupe(map<int, vector<string> > &inputVector) {
 /// ////////////////////////////////////////////////////////////////////////////
 void vectorSaveToFile(vector< vector<string> > &inputVector, string fileName,
                       bool appendToFile) {
-  outputToConsole("vectorSaveToFile: " + fileName, DEBUG);
+  outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   if (appendToFile) {
@@ -259,7 +276,7 @@ void vectorSaveToFile(vector< vector<string> > &inputVector, string fileName,
 
 void vectorSaveToFile(vector<string> &inputVector, string fileName,
                       bool appendToFile) {
-  outputToConsole("vectorSaveToFile: " + fileName, DEBUG);
+  outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   if (appendToFile) {
@@ -281,7 +298,7 @@ void vectorSaveToFile(vector<string> &inputVector, string fileName,
 // "i|am|the wind"
 void mapSaveToFile(map<string, vector<string> > &inputVector,
                    string fileName) {
-  outputToConsole("mapSaveToFile: " + fileName, DEBUG);
+  outputToConsole("mapSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   outputFile.open(fileName.c_str());
@@ -308,7 +325,7 @@ void mapSaveToFile(map<string, vector<string> > &inputVector,
 // "Values: wind"
 void mapSaveToFileKeyHeader(map<string, vector<string> > &inputVector,
                             string fileName) {
-  outputToConsole("mapSaveToFileKeyHeader: " + fileName, DEBUG);
+  outputToConsole("mapSaveToFileKeyHeader: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   outputFile.open(fileName.c_str());
@@ -337,7 +354,7 @@ void mapSaveToFileKeyHeader(map<string, vector<string> > &inputVector,
 // "        at"
 void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
                             string fileName) {
-  outputToConsole("mapSaveToFileKeyHeader: " + fileName, DEBUG);
+  outputToConsole("mapSaveToFileKeyHeader: " + fileName, MSG_DEBUG);
 
   // Print the map to a file
   ofstream outputFile;
@@ -356,7 +373,7 @@ void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
 }
 /// ////////////////////////////////////////////////////////////////////////////
 bool importLexicon(vector<string> &inputVector, string fileName) {
-  outputToConsole("importLexicon: " + fileName, DEBUG);
+  outputToConsole("importLexicon: " + fileName, MSG_DEBUG);
 
   // Load the lexicon file. This contains a list of words, one per line.
   ifstream inputFile;
@@ -398,7 +415,7 @@ bool importLexicon(vector<string> &inputVector, string fileName) {
 ///   in letter count, and outputs to a separate file whose name is returned
 ///   as the function's return value.
 string loadInputFile(string inputFileName) {
-  outputToConsole("loadInputFile:  Input: " + inputFileName, DEBUG);
+  outputToConsole("loadInputFile:  Input: " + inputFileName, MSG_DEBUG);
 
   // We need to save each with a different file number suffix.
   // So we need to track how many files have been read.
@@ -534,14 +551,14 @@ string loadInputFile(string inputFileName) {
   vectorSaveToFile(rawSnowball,ss.str(),true);
 
   // Output debug info to console.
-  outputToConsole("loadInputFile: Output: " + ss.str(), DEBUG);
+  outputToConsole("loadInputFile: Output: " + ss.str(), MSG_DEBUG);
 
   // Return the name of the temporary "pro-" file.
   return ss.str();
 }
 /// ////////////////////////////////////////////////////////////////////////////
 bool openInputPreprocessed(string fileName) {
-  outputToConsole("openInputPreprocessed: " + fileName, DEBUG);
+  outputToConsole("openInputPreprocessed: " + fileName, MSG_DEBUG);
 
   vector<string> inputPreprocessed;
 
@@ -576,9 +593,8 @@ bool openInputPreprocessed(string fileName) {
         keyForwards.erase(keyForwards.find_last_not_of("|")+1);
         keyBackwards.erase(keyBackwards.find_last_not_of("|")+1);
 
-        string valueForwards, valueBackwards;
-        valueForwards = wordVector.back();
-        valueBackwards = wordVector.front();
+        string valueForwards = wordVector.back();
+        string valueBackwards = wordVector.front();
 
         wordsForwards[keyForwards].push_back(valueForwards);
         wordsBackwards[keyBackwards].push_back(valueBackwards);
@@ -598,7 +614,7 @@ bool openInputPreprocessed(string fileName) {
 }
 /// ////////////////////////////////////////////////////////////////////////////
 bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
-  outputToConsole("loadInputFilesFromDirectory: " + directoryPath, DEBUG);
+  outputToConsole("loadInputFilesFromDirectory: " + directoryPath, MSG_DEBUG);
 
   // We will loop through the root directory to load each file.
   // File stuff is pretty platform-specific. This works in Windows 7.
@@ -659,10 +675,10 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
     inputFile.close();
 
     if( remove( currentFileName.c_str() ) != 0 ) {
-      outputToConsole("Error deleting temporary file: " + currentFileName, ERROR);
+      outputToConsole("Error deleting temporary file: " + currentFileName, MSG_ERROR);
       return false;
     } else {
-      outputToConsole("Temporary file successfully deleted: " + currentFileName, DEBUG);
+      outputToConsole("Temporary file successfully deleted: " + currentFileName, MSG_DEBUG);
     }
   }
 
@@ -693,7 +709,7 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
       }
     }
   */
-  outputToConsole("Generating processed input file", DEBUG);
+  outputToConsole("Generating processed input file", MSG_DEBUG);
 
   vector<string> inputPreprocessed;
   for (unsigned int k = 0; k < allInputLines.size(); k++) {
@@ -754,7 +770,7 @@ string randomValidElement(vector<string> &inputVector) {
   vector<string> valid = validWords(inputVector);
   if (valid.size() == 0) {
     returnString = "";
-    outputToConsole("No valid element found.",DEBUG);
+    outputToConsole("No valid element found.",MSG_DEBUG);
   } else {
     unsigned int randIndex = rand() % valid.size();
     returnString = valid[randIndex];
@@ -778,7 +794,7 @@ bool createPoemSnowball(string seedPhrase) {
 
     // Set the fileName string and write debug info
     fileName = ss.str();
-    outputToConsole("createPoemSnowball: " + fileName, DEBUG);
+    outputToConsole("createPoemSnowball: " + fileName, MSG_DEBUG);
   }
 
 
@@ -787,7 +803,7 @@ bool createPoemSnowball(string seedPhrase) {
   //   least a little bit valid.
   if ( (wordsWithLength[1].size() == 0) || (wordsWithLength[2].size() == 0) ||
        (wordsForwards.size() == 0) || (wordsBackwards.size() == 0) ) {
-    outputToConsole("Snowball input files contain invalid (or no) data.\n", ERROR);
+    outputToConsole("Snowball input files contain invalid (or no) data.\n", MSG_ERROR);
     return false;
   }
 
@@ -796,7 +812,7 @@ bool createPoemSnowball(string seedPhrase) {
     stringstream ss;
     ss << "Beginning word length \"" << poemWordBegin
        << "\" is too high for your input." << endl;
-    outputToConsole(ss.str(), ERROR);
+    outputToConsole(ss.str(), MSG_ERROR);
     return false;
   }
 
@@ -805,7 +821,7 @@ bool createPoemSnowball(string seedPhrase) {
     stringstream ss;
     ss << "The exclude characters string \"" << excludedChars
        << "\" is too restrictive for your input." << endl;
-    outputToConsole(ss.str(), ERROR);
+    outputToConsole(ss.str(), MSG_ERROR);
     return false;
   }
 
@@ -820,7 +836,7 @@ bool createPoemSnowball(string seedPhrase) {
            << "\" letters long to \"" << poemWordEnd << "\" letters." << endl
            << "However, there are no words in the corpus that are \"" << i
            << "\" letters long." << endl;
-        outputToConsole(ss.str(), ERROR);
+        outputToConsole(ss.str(), MSG_ERROR);
         return false;
       }
     }
@@ -1081,7 +1097,7 @@ bool createPoemSnowball(string seedPhrase) {
   // Write the generated snowball poems to stdout INSTEAD OF to a file.
   if (outputPoemsOnly) {
     for(unsigned int i=0; i < allSnowballs.size(); i++) {
-      outputToConsole(allSnowballs[i], POEM);
+      outputToConsole(allSnowballs[i], MSG_POEM);
     }
 
   } else {
@@ -1098,34 +1114,34 @@ bool createPoemSnowball(string seedPhrase) {
     outputFileSingle.close();
 
     // Print the file name to stdout
-    outputToConsole(fileName, STANDARD);
+    outputToConsole(fileName, MSG_STANDARD);
   }
 
 
   // If we had to abandon some poems due to multiple failures, inform the user.
   // But, since it's not really an error, only do this if the "verbose" option
-  //   was specified (so use DEBUG).
+  //   was specified (so use MSG_DEBUG).
   if (poemCountFailure >= poemFailureMax) {
-    outputToConsole("Too many incomplete poems.", DEBUG);
-    outputToConsole("Couldn't generate enough beginnings from seed phrase: "+seedPhrase, DEBUG);
+    outputToConsole("Too many incomplete poems.", MSG_DEBUG);
+    outputToConsole("Couldn't generate enough beginnings from seed phrase: "+seedPhrase, MSG_DEBUG);
 
     ostringstream ssConvertInt;
     ssConvertInt << "Target: " << poemTarget << " - Actual: " << poemCountSuccess;
-    outputToConsole(ssConvertInt.str(), DEBUG);
+    outputToConsole(ssConvertInt.str(), MSG_DEBUG);
   }
 
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
 bool loadSeedPhrasesFromFile(vector<string> &inputVector, string fileName) {
-  outputToConsole("loadSeedPhrasesFromFile: " + fileName, DEBUG);
+  outputToConsole("loadSeedPhrasesFromFile: " + fileName, MSG_DEBUG);
 
   // Loop through the input file and fill to {inputVector}
   ifstream inputFile;
   inputFile.open(fileName.c_str());
 
   if (!inputFile.is_open()) {
-    outputToConsole("Seed phrase file not found: " + fileName, ERROR);
+    outputToConsole("Seed phrase file not found: " + fileName, MSG_ERROR);
     return false;
 
   } else {
@@ -1141,7 +1157,58 @@ bool loadSeedPhrasesFromFile(vector<string> &inputVector, string fileName) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+// Windows only. Set the value of the "workingPath" global.
+bool setPathWorkingDirectory() {
+  char cCurrentPath[FILENAME_MAX];
+  bool pathFound = GetCurrentDir(cCurrentPath, sizeof(cCurrentPath));
+  workingPath = cCurrentPath;
+  return pathFound;
+}
+
+// Windows only. Set the values of the "programPath" and "programFile" globals.
+bool setPathAndFileName() {
+
+  // Use Windows API GetModuleFileName() function.
+  TCHAR pathOfEXEchar[2048];
+  int bytes = GetModuleFileName(NULL, pathOfEXEchar, 2048);
+  if (bytes == 0) return false;
+
+  string pathOfEXE = pathOfEXEchar;
+
+  // Separate the string to Path and File names.
+  std::size_t found = pathOfEXE.find_last_of("/\\");
+  bool pathSeparatorFound = (found != std::string::npos);
+
+  // Set the variables if found.
+  if (pathSeparatorFound) {
+    programPath = pathOfEXE.substr(0,found);
+    programFile = pathOfEXE.substr(found+1);
+  }
+
+  return pathSeparatorFound;
+}
+/// ////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[]) {
+
+  // Find the location of the working directory.
+  if (!setPathWorkingDirectory()) {
+    outputToConsole("Could not determine working directory location.", MSG_ERROR);
+    outputToConsoleMajorError();
+    return EXIT_FAILURE;
+  }
+
+  // Find the location of the executable.
+  if (!setPathAndFileName()) {
+    outputToConsole("Could not determine program executable location.", MSG_ERROR);
+    outputToConsoleMajorError();
+    return EXIT_FAILURE;
+  }
+
+  // Default location for the files is now the *executable* directory.
+  //   (Not the working directory)
+  lexiconFileName      = programPath + PathSeparator + lexiconFileName;
+  preProcessedFileName = programPath + PathSeparator + preProcessedFileName;
+
 
   // String stream for use with output messages.
   ostringstream ss;
@@ -1242,7 +1309,7 @@ int main(int argc, char* argv[]) {
         invalidOption = true;
         ss.str("");
         ss << "Option " << (char)optopt << " requires an argument.";
-        outputToConsole(ss.str(), ERROR);
+        outputToConsole(ss.str(), MSG_ERROR);
         break;
 
 
@@ -1253,24 +1320,24 @@ int main(int argc, char* argv[]) {
         if (isprint(optopt)) {
           ss.str("");
           ss << "Unknown option: " << (char)optopt;
-          outputToConsole(ss.str(), ERROR);
+          outputToConsole(ss.str(), MSG_ERROR);
 
         } else {
           ss.str("");
           ss << "Unknown option character: " << (char)optopt;
-          outputToConsole(ss.str(), ERROR);
+          outputToConsole(ss.str(), MSG_ERROR);
         }
         break;
 
       default:
         invalidOption = true;
-        outputToConsole("Something crazy happened with the options you specified.", ERROR);
+        outputToConsole("Something crazy happened with the options you specified.", MSG_ERROR);
     }
   }
 
-  // Exit the program if it errored (We've already output ERROR messages)
+  // Exit the program if it errored (We've already output MSG_ERROR messages)
   if (invalidOption) {
-    outputToConsoleUsage(ERROR);
+    outputToConsoleUsage(MSG_ERROR);
     return EXIT_FAILURE;
   }
 
@@ -1294,21 +1361,21 @@ int main(int argc, char* argv[]) {
 
   // -h  =  Print help, then exit the program
   if (opt_h) {
-    outputToConsoleHelp(STANDARD);
+    outputToConsoleHelp(MSG_STANDARD);
     return EXIT_SUCCESS;
   }
 
   // -V  =  Print version of program, then exit the program
   if (opt_V) {
-    outputToConsoleVersion(STANDARD);
-    outputToConsole("", STANDARD);
+    outputToConsoleVersion(MSG_STANDARD);
+    outputToConsole("", MSG_STANDARD);
     return EXIT_SUCCESS;
   }
 
   // Error if -l and -L
   if (opt_l && opt_L) {
-    outputToConsole("You can't specify option -l as well as -L.", ERROR);
-    outputToConsoleUsage(ERROR);
+    outputToConsole("You can't specify option -l as well as -L.", MSG_ERROR);
+    outputToConsoleUsage(MSG_ERROR);
     return EXIT_FAILURE;
   }
 
@@ -1338,7 +1405,7 @@ int main(int argc, char* argv[]) {
   // Loop through the input file and fill {seedPhrases}
   if (opt_s) {
     if ( !loadSeedPhrasesFromFile(seedPhrases,seedPhrasesFileName) ) {
-      outputToConsole("Require a valid file containing one Seed Phrase per line.", ERROR);
+      outputToConsole("Require a valid file containing one Seed Phrase per line.", MSG_ERROR);
       return EXIT_FAILURE;
     }
   }
@@ -1358,7 +1425,7 @@ int main(int argc, char* argv[]) {
   if (opt_p && !opt_r) {
     ifstream inputFile(preProcessedFileName.c_str());
     if ( !inputFile.good() ) {
-      outputToConsole("Specified preprocessed file not found: " + preProcessedFileName, ERROR);
+      outputToConsole("Specified preprocessed file not found: " + preProcessedFileName, MSG_ERROR);
       return EXIT_FAILURE;
     }
   }
@@ -1368,7 +1435,7 @@ int main(int argc, char* argv[]) {
   if (opt_r) {
     DIR *dir;
     if ((dir = opendir( directoryRawInput.c_str() )) == NULL) {
-      outputToConsole("Specified input directory not found: " + directoryRawInput, ERROR);
+      outputToConsole("Specified input directory not found: " + directoryRawInput, MSG_ERROR);
       return EXIT_FAILURE;
     }
     processRawText = true;
@@ -1376,25 +1443,29 @@ int main(int argc, char* argv[]) {
 
   // Debug state of the program due to the options.
   ss.str("");
-  ss <<  ">> outputIsVerbose: "        << outputIsVerbose
-    << "\n>> outputIsQuiet: "          << outputIsQuiet
-    << "\n>> outputPoemsOnly: "        << outputPoemsOnly
-    << "\n>> processRawText: "         << processRawText
-    << "\n>> directoryRawInput: "      << directoryRawInput
-    << "\n>> debugVectorsSaveToFile: " << debugVectorsSaveToFile
-    << "\n>> poemTarget: "             << poemTarget
-    << "\n>> poemFailureMax: "         << poemFailureMax
-    << "\n>> multiKeyPercentage: "     << multiKeyPercentage
-    << "\n>> poemWordBegin: "          << poemWordBegin
-    << "\n>> usePoemWordEnd: "         << usePoemWordEnd
-    << "\n>> poemWordEnd: "            << poemWordEnd
-    << "\n>> seedPhrasesFileName: "    << seedPhrasesFileName
-    << "\n>> useLexiconFile: "         << useLexiconFile
-    << "\n>> lexiconFileName: "        << lexiconFileName
-    << "\n>> preProcessedFileName: "   << preProcessedFileName
+  ss<< "\n  workingPath: "             << workingPath
+    << "\n  programPath: "             << programPath
+    << "\n  programFile: "             << programFile
+    << "\n"
+    << "\n  outputIsVerbose: "         << outputIsVerbose
+    << "\n  outputIsQuiet: "           << outputIsQuiet
+    << "\n  outputPoemsOnly: "         << outputPoemsOnly
+    << "\n  processRawText: "          << processRawText
+    << "\n  directoryRawInput: "       << directoryRawInput
+    << "\n  debugVectorsSaveToFile: "  << debugVectorsSaveToFile
+    << "\n  poemTarget: "              << poemTarget
+    << "\n  poemFailureMax: "          << poemFailureMax
+    << "\n  multiKeyPercentage: "      << multiKeyPercentage
+    << "\n  poemWordBegin: "           << poemWordBegin
+    << "\n  usePoemWordEnd: "          << usePoemWordEnd
+    << "\n  poemWordEnd: "             << poemWordEnd
+    << "\n  seedPhrasesFileName: "     << seedPhrasesFileName
+    << "\n  useLexiconFile: "          << useLexiconFile
+    << "\n  lexiconFileName: "         << lexiconFileName
+    << "\n  preProcessedFileName: "    << preProcessedFileName
     << "\n"
   ;
-  outputToConsole(ss.str(), DEBUG);
+  outputToConsole(ss.str(), MSG_DEBUG);
 
 
   /// Cool. All inputs and options dealt with.
@@ -1406,8 +1477,8 @@ int main(int argc, char* argv[]) {
     // Load the lexicon file if necessary.
     if (useLexiconFile) {
       if ( !importLexicon(wordsLexicon,lexiconFileName) ) {
-        outputToConsole("Specified lexicon file not found: " + lexiconFileName, ERROR);
-        outputToConsole("Check the file is valid, or use the -L option to disable lexicon checking.", ERROR);
+        outputToConsole("Specified lexicon file not found: " + lexiconFileName, MSG_ERROR);
+        outputToConsole("Check the file is valid, or use the -L option to disable lexicon checking.", MSG_ERROR);
         return EXIT_FAILURE;
       }
     }
@@ -1419,11 +1490,11 @@ int main(int argc, char* argv[]) {
 
   // Error if file is not found.
   if ( !openInputPreprocessed(preProcessedFileName) ) {
-    outputToConsole("Cannot open preprocessed file: "+preProcessedFileName, ERROR);
-    outputToConsole("This file is necessary for the program to function.", ERROR);
-    outputToConsole("Please create this file and then run the program.", ERROR);
-    outputToConsole("This file can be generated using the -r option.", ERROR);
-    outputToConsole("You can use -h or check the readme for more info.", ERROR);
+    outputToConsole("Cannot open preprocessed file: "+preProcessedFileName, MSG_ERROR);
+    outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
+    outputToConsole("Please create this file and then run the program.", MSG_ERROR);
+    outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
+    outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
     return EXIT_FAILURE;
   }
 
@@ -1464,14 +1535,17 @@ int main(int argc, char* argv[]) {
 
   // Output if error.
   if (problemWithTheSnowballs) {
-    outputToConsole("Input data is invalid. Perhaps you used the wrong preprocessed file?", ERROR);
-    outputToConsole("Or maybe there just wasn't enough useful data in the file.", ERROR);
-    outputToConsole("This file can be generated using the -r option.", ERROR);
-    outputToConsole("You can use -h or check the readme for more info.", ERROR);
+    ss.str("");
+    ss << "Input data is invalid. Perhaps you used the wrong preprocessed file?"
+      "\nOr maybe there just wasn't enough useful data in the file."
+      "\nThis file can be generated using the -r option."
+      "\nYou can use -h or check the readme for more info."
+    ;
+    outputToConsole(ss.str(),MSG_ERROR);
     return EXIT_FAILURE;
   }
 
   // If no error, then hooray!
-  outputToConsole("return EXIT_SUCCESS", DEBUG);
+  outputToConsole("\nreturn EXIT_SUCCESS", MSG_DEBUG);
   return EXIT_SUCCESS;
 }
