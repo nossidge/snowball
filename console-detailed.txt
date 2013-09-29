@@ -3,8 +3,9 @@
 
 Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
-                [-P number] [-k number] [-b number] [-e number] [-x chars]
-                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]
+                [-P number] [-k number] [-b number] [-e number]
+                [-x chars] [-X number] [-i (delim) | -s file]
+                [-p file] [-r directory] [l file | -L]
 
 ======== Most common options
 
@@ -127,6 +128,11 @@ error.
 Exclude certain letters from generated poems. This lets you create lipogrammatic
 snowballs. For example, using the argument "aeiuy" a resulting poem might be:
 "o no god took forth worlds comfort", where "O" is the only vowel used.
+
+-X3
+Minimum word length to apply the filter specified in 'x'. The filter will only
+apply to words that are at least this long. Words that have fewer letters will
+not be filtered. The default is to apply the filter to all words.
 
 ======== Snowball seed phrases
 

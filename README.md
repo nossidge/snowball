@@ -8,7 +8,8 @@ lookups to validate input words.
 ## What is a snowball poem?
 Snowball (also called a Chaterism): A poem in which each line is a single word,
 and each successive word is one letter longer. One of the constrained writing
-techniques invented by the [Oulipo](http://en.wikipedia.org/wiki/Oulipo) (Workshop of Potential Literature).
+techniques invented by the
+[Oulipo](http://en.wikipedia.org/wiki/Oulipo) (Workshop of Potential Literature).
 
     o
     in
@@ -20,7 +21,18 @@ techniques invented by the [Oulipo](http://en.wikipedia.org/wiki/Oulipo) (Worksh
     rattling
     cacophony
 
-A collection of curated output can be found on Twitter here:
+## Sample Snowball Output
+
+Beware! The output will, for the most part, be absolute rubbish. But there will
+be wheat in the chaff. These are some actual unedited generated poems. The input
+was mostly Dickens.
+
+    i am but dust which seemed nothing whatever
+    o my two feet again walked through profound solemnity
+    i am the dawn light before anybody expected something disorderly
+    i do not like being hungry
+
+You can find more curated output on Twitter:
 https://twitter.com/SnowballPoetry
 
 # Quick Start
@@ -72,7 +84,7 @@ likely following word. For example if the poem currently being processed started
 The word "above" would be prioritised above "spoke" and "lucan", as "the lord"
 is a longer key than simply "lord".
 
-You can also specify a "seed phrase" to the porgram. This
+You can also specify a "seed phrase" to the program. This
 ensures that all poems created in that batch will contain the given phrase.
 If the seed phrase would form a middle portion of the poem (e.g. "still cannot
 believe") then the poem will be generated backwards, down to a one letter word.
@@ -159,19 +171,15 @@ starts off a poem, but it is interesting enough as incidental information for me
 to have kept it in. Since it is used to find forward growing snowballs, it only
 includes the first word in a given word pair, not the last.
 
-## Sample Snowball Output
+**output-wordsDeadBranches.txt**
+Lists all single word keys in wordsBackwards that are not keys in wordsForwards.
+This is all the words that do not have a subsequent word to follow them. If any
+of these words are selected in a poem, the poem will end because there would be
+no other word to chain to.
 
-Beware! The output will, for the most part, be absolute rubbish. But there will
-be wheat in the chaff. These are some actual unedited generated poems. The input
-was mostly Dickens.
-
-    i am but dust which seemed nothing whatever
-    o my two feet again walked through profound solemnity
-    i am the dawn light before anybody expected something disorderly
-    i do not like being hungry
-
-You can find more curated output on Twitter:
-https://twitter.com/SnowballPoetry
+You can use this to help in the filtering down of your lexicon file. If a word
+does not have any other word following it, it is more likely that it is not a
+valid word. You can then decide if maybe you should remove it from the lexicon.
 
 ## Thoughts for the future
 

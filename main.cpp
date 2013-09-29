@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.34"
-#define PROGRAM_DATE    "2013/09/22"
+#define PROGRAM_VERSION "Version 1.35"
+#define PROGRAM_DATE    "2013/09/29"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +91,7 @@ unsigned int poemWordEnd = 8;
 // Should we exclude any characters (for lipogram output).
 bool excludeAnyChars = false;
 string excludedChars = "";
+unsigned int excludedCharMinWordLength = 0;
 
 // Seed phrases. File name and the delimiter between each.
 string seedPhrasesFileName = "";
@@ -172,8 +173,9 @@ void outputToConsoleUsage(MsgType type) {
   ss <<
     "\nUsage: snowball [-h | -V]"
     "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
-    "\n                [-P number] [-k number] [-b number] [-e number] [-x chars]"
-    "\n                [-i (delim) | -s file] [-p file] [-r directory] [l file | -L]"
+    "\n                [-P number] [-k number] [-b number] [-e number]"
+    "\n                [-x chars] [-X number] [-i (delim) | -s file]"
+    "\n                [-p file] [-r directory] [l file | -L]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -207,6 +209,7 @@ void outputToConsoleHelp(MsgType type) {
     "\n  -b4           Begin poems at a word length other than 1"
     "\n  -e8           Reject poems where last word is fewer than 'n' letters long"
     "\n  -x [ chars ]  Create poems that exclude all argument letters"
+    "\n  -X3           Minimum word length to apply 'x' filtering to"
     "\n"
     "\nSnowball seed phrases:"
     "\n  -s filename.txt   Input seed phrases from a file, new line delimited"
@@ -778,10 +781,15 @@ vector<string> filterOutExcludedChars(vector<string> &inputVector,
 }
 // Return a string vector that contains only the valid values.
 vector<string> validWords(vector<string> &inputVector) {
-  if (excludeAnyChars) {
-    return filterOutExcludedChars(inputVector,excludedChars);
-  } else {
+  if ( (!excludeAnyChars) || (inputVector.size() == 0) ) {
     return inputVector;
+  } else {
+
+    if (inputVector[0].length() >= excludedCharMinWordLength) {
+      return filterOutExcludedChars(inputVector,excludedChars);
+    } else {
+      return inputVector;
+    }
   }
 }
 /// ////////////////////////////////////////////////////////////////////////////
@@ -841,12 +849,20 @@ bool createPoemSnowball(string seedPhrase) {
   }
 
   // Make sure the "excludedChars" isn't too restrictive.
-  if ( validWords(wordsWithLength[poemWordBegin]).size() == 0 ) {
-    stringstream ss;
-    ss << "The exclude characters string \"" << excludedChars
-       << "\" is too restrictive for your input." << endl;
-    outputToConsole(ss.str(), MSG_ERROR);
-    return false;
+  if (excludeAnyChars) {
+
+    unsigned int wordLengthToCheck = excludedCharMinWordLength;
+    if (wordLengthToCheck == 0) {
+      wordLengthToCheck = poemWordBegin;
+    }
+
+    if ( validWords(wordsWithLength[wordLengthToCheck]).size() == 0 ) {
+      stringstream ss;
+      ss << "The exclude characters string \"" << excludedChars
+         << "\" is too restrictive for your input." << endl;
+      outputToConsole(ss.str(), MSG_ERROR);
+      return false;
+    }
   }
 
   // If we are trying to find words between a begin length and an end length,
@@ -1249,7 +1265,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:s:i::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:X:s:i::p:r:l:L")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1292,10 +1308,16 @@ int main(int argc, char* argv[]) {
         poemWordEnd = (unsigned int)abs(atoi(optarg));
         break;
 
-      // Characters to exclude (convert to lowercase).
+      // Characters to exclude.
       case 'x':
         excludeAnyChars = true;
         excludedChars = optarg;
+        break;
+
+      // Word length to begin 'x' filtering.
+      case 'X':
+        excludeAnyChars = true;
+        excludedCharMinWordLength = (unsigned int)abs(atoi(optarg));
         break;
 
       // Take seed phrases as input from a file.
@@ -1375,7 +1397,7 @@ int main(int argc, char* argv[]) {
     generatorMarkov = false;  // If the key is 0, pick words at random
     generatorRandom = true;   //   instead of using Markov chains.
   }
-  std::transform(excludedChars.begin(),
+  std::transform(excludedChars.begin(),   // Convert to lowercase.
                  excludedChars.end(),
                  excludedChars.begin(),
                  ::tolower);
@@ -1467,26 +1489,29 @@ int main(int argc, char* argv[]) {
 
   // Debug state of the program due to the options.
   ss.str("");
-  ss<< "\n  workingPath: "             << workingPath
-    << "\n  programPath: "             << programPath
-    << "\n  programFile: "             << programFile
+  ss<< "\n  workingPath: "               << workingPath
+    << "\n  programPath: "               << programPath
+    << "\n  programFile: "               << programFile
     << "\n"
-    << "\n  outputIsVerbose: "         << outputIsVerbose
-    << "\n  outputIsQuiet: "           << outputIsQuiet
-    << "\n  outputPoemsOnly: "         << outputPoemsOnly
-    << "\n  processRawText: "          << processRawText
-    << "\n  directoryRawInput: "       << directoryRawInput
-    << "\n  debugVectorsSaveToFile: "  << debugVectorsSaveToFile
-    << "\n  poemTarget: "              << poemTarget
-    << "\n  poemFailureMax: "          << poemFailureMax
-    << "\n  multiKeyPercentage: "      << multiKeyPercentage
-    << "\n  poemWordBegin: "           << poemWordBegin
-    << "\n  usePoemWordEnd: "          << usePoemWordEnd
-    << "\n  poemWordEnd: "             << poemWordEnd
-    << "\n  seedPhrasesFileName: "     << seedPhrasesFileName
-    << "\n  useLexiconFile: "          << useLexiconFile
-    << "\n  lexiconFileName: "         << lexiconFileName
-    << "\n  preProcessedFileName: "    << preProcessedFileName
+    << "\n  outputIsVerbose: "           << outputIsVerbose
+    << "\n  outputIsQuiet: "             << outputIsQuiet
+    << "\n  outputPoemsOnly: "           << outputPoemsOnly
+    << "\n  processRawText: "            << processRawText
+    << "\n  directoryRawInput: "         << directoryRawInput
+    << "\n  debugVectorsSaveToFile: "    << debugVectorsSaveToFile
+    << "\n  poemTarget: "                << poemTarget
+    << "\n  poemFailureMax: "            << poemFailureMax
+    << "\n  multiKeyPercentage: "        << multiKeyPercentage
+    << "\n  poemWordBegin: "             << poemWordBegin
+    << "\n  usePoemWordEnd: "            << usePoemWordEnd
+    << "\n  poemWordEnd: "               << poemWordEnd
+    << "\n  excludeAnyChars: "           << excludeAnyChars
+    << "\n  excludedChars: "             << excludedChars
+    << "\n  excludedCharMinWordLength: " << excludedCharMinWordLength
+    << "\n  seedPhrasesFileName: "       << seedPhrasesFileName
+    << "\n  useLexiconFile: "            << useLexiconFile
+    << "\n  lexiconFileName: "           << lexiconFileName
+    << "\n  preProcessedFileName: "      << preProcessedFileName
     << "\n"
   ;
   outputToConsole(ss.str(), MSG_DEBUG);
