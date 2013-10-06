@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.35"
-#define PROGRAM_DATE    "2013/09/29"
+#define PROGRAM_VERSION "Version 1.4"
+#define PROGRAM_DATE    "2013/10/06"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,28 +104,37 @@ string lexiconFileName = "snowball-lexicon.txt";
 // The file to use to input preprocessed snowball phrases.
 string preProcessedFileName = "snowball-preprocessed.txt";
 
+// The file to use to interchange raw text input words.
+bool useThesaurusFile = true;
+string thesaurusFileName = "snowball-thesaurus.txt";
+
 /// ////////////////////////////////////////////////////////////////////////////
 
 // Vector for the lexicon. A simple word list.
 vector<string> wordsLexicon;
 
-/*  map<int,vector<string> >
-    [wordLength], [wordsVector]
+/*  [keyWord],    [wordsThesaurus]
+    {honor},      {honour}
+    {honour},     {honor}
+    {completely}, {utterly, totally}
+    {utterly},    {totally, completely}
+    {totally},    {completely, utterly}    */
+map<string,vector<string> > wordsThesaurus;
+
+/*  [wordLength], [wordsVector]
     {1},          {a, i, o}
     {2},          {it, am, to, do, we}
     {3},          {who, are, you, may}     */
 map<int,vector<string> > wordsWithLength;
 
-/*  map<string,vector<string> >
-    [keyWord], [wordsForwards]
+/*  [keyWord], [wordsForwards]
     {it},      {can, was, had}
     {am},      {the, our}
     {to},      {you, ask, the, put, say}
     {do|you},  {know, care, look}          */
 map<string,vector<string> > wordsForwards;
 
-/*  map<string,vector<string> >
-    [keyWord], [wordsBackwards]
+/*  [keyWord], [wordsBackwards]
     {can},     {it, we}
     {the},     {is, do}                    */
 map<string,vector<string> > wordsBackwards;
@@ -175,7 +184,7 @@ void outputToConsoleUsage(MsgType type) {
     "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
     "\n                [-P number] [-k number] [-b number] [-e number]"
     "\n                [-x chars] [-X number] [-i (delim) | -s file]"
-    "\n                [-p file] [-r directory] [l file | -L]"
+    "\n                [-p file] [-r directory] [l file | -L] [t file | -T]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -220,9 +229,22 @@ void outputToConsoleHelp(MsgType type) {
     "\n  -r ./input_directory           Create from raw English text files"
     "\n  -l snowball-lexicon.txt        The file that contains list of valid words"
     "\n  -L                             Don't use a lexicon file to validate words"
+    "\n  -t snowball-thesaurus.txt      The file that contains the words to switch"
+    "\n  -T                             Don't use a thesaurus file to switch words"
     "\n"
   ;
   outputToConsole(ss.str(),type);
+}
+/// ////////////////////////////////////////////////////////////////////////////
+// Not sure if I'll need this, but it's good for debugging.
+string toString(vector<string> &inputVector, string delimiter) {
+  string returnString = "";
+  for (vector<string>::iterator iter = inputVector.begin();
+                                iter!=inputVector.end(); ++iter) {
+    returnString = returnString + *iter + delimiter;
+  }
+  returnString.erase(returnString.find_last_not_of(delimiter)+1);
+  return returnString;
 }
 /// ////////////////////////////////////////////////////////////////////////////
 /// Split a string into a string vector
@@ -437,6 +459,115 @@ bool importLexicon(vector<string> &inputVector, string fileName) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+/*  map<string,vector<string> > wordsThesaurus;
+    [keyWord],    [wordsThesaurus]
+    {honor},      {honour}
+    {honour},     {honor}
+    {completely}, {utterly, totally}
+    {utterly},    {totally, completely}
+    {totally},    {completely, utterly}    */
+bool importThesaurus(map<string,vector<string> > &inputMap, string fileName) {
+  outputToConsole("importThesaurus: " + fileName, MSG_DEBUG);
+
+  // Load the thesaurus file.
+  // This contains a list of words, grouped together on one line.
+  ifstream inputFile;
+  inputFile.open(fileName.c_str());
+
+  if (!inputFile.is_open()) {
+    return false;
+
+  } else {
+    while (inputFile.good()) {
+
+      // Get the next line, and transform to lowercase.
+      string line;
+      getline(inputFile,line);
+      std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+
+      // Split the line into separate words.
+      vector<string> wordVector = split(line,' ');
+
+      // Rotate the elements to get all possible variations.
+      for (unsigned int i = 0; i < wordVector.size(); i++) {
+        std::rotate(wordVector.begin(),wordVector.begin()+1,wordVector.end());
+
+        // Load to inputMap.
+        for (unsigned int j = 1; j < wordVector.size(); j++) {
+          inputMap[wordVector[0]].push_back(wordVector[j]);
+        }
+      }
+    }
+  }
+  inputFile.close();
+
+  return true;
+}
+/// ////////////////////////////////////////////////////////////////////////////
+// Transform an input string into a vector containing all its permutations,
+//   as defined by the {wordsThesaurus} global vector.
+//
+// inputString: "The colors we view whilst dreaming"
+//
+// Output:
+// The colors we view while dreaming
+// The colors we view whilst dreaming
+// The colours we view while dreaming
+// The colours we view whilst dreaming
+//
+vector<string> lineExpandedFromThesaurus(string &inputString) {
+  vector<string> phrases;
+
+  // Just return inputString if we don't need to use the thesaurus.
+  if (!useThesaurusFile) {
+    phrases.push_back(inputString);
+
+  } else {
+
+    vector<string> phrasesOrig;
+
+    // We loop through this later, so need to have one empty string element.
+    phrases.push_back("");
+
+    // Split into separate words.
+    vector<string> words = split(inputString,' ');
+
+    // Loop through the words.
+    for (unsigned int iWord=0; iWord<words.size(); iWord++) {
+
+      // See if the word is a key in the thesaurus map.
+      unsigned int countThesaurusWords = wordsThesaurus[words[iWord]].size();
+      bool found = ( countThesaurusWords != 0 );
+
+      // If found, backup the current {phrases} vector.
+      // We'll add to {phrases}, but read from {phrasesOrig}.
+      if (found) phrasesOrig = phrases;
+
+      // Even if not found, add the word to each phrase string.
+      // Loop through each {phrase} and append to the end.
+      for (unsigned int iPhrase=0; iPhrase<phrases.size(); iPhrase++) {
+        phrases[iPhrase].append(words[iWord]+' ');
+      }
+
+      // If it is found, add ALL words that match the thesaurus key.
+      if (found) {
+
+        // For each phrase in {phrasesOrig}
+        for (unsigned int iOrig=0; iOrig<phrasesOrig.size(); iOrig++) {
+          string strPhrase = phrasesOrig[iOrig];
+
+          // Loop through {phrasesOrig} and append to {phrases}.
+          for (unsigned int i=0; i<countThesaurusWords; i++) {
+            phrases.push_back(strPhrase+wordsThesaurus[words[iWord]][i]+' ');
+          }
+        }
+      }
+    }
+  }
+
+  return phrases;
+}
+/// ////////////////////////////////////////////////////////////////////////////
 /// This function reads an unprocessed natural language text file (specified
 ///   in inputFileName), extracts just the word phrases that snowball upwards
 ///   in letter count, and outputs to a separate file whose name is returned
@@ -464,21 +595,27 @@ string loadInputFile(string inputFileName) {
 
       // Fill this up with word sequences that snowball.
       vector<string> snowballBuffer;
-      string previousWord;
 
+      // Get the next line, and transform to lowercase.
       string line;
-      getline (inputFile,line);
-      istringstream iss(line);
+      getline(inputFile,line);
+      std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 
-      do {
+      // Use the thesaurus to expand to all possible variants.
+      vector<string> lineVector = lineExpandedFromThesaurus(line);
+
+      // For each line (may be more than one because of the thesaurus)
+      for (vector<string>::iterator iterLine =lineVector.begin();
+                                    iterLine!=lineVector.end(); ++iterLine) {
+        string previousWord;
+
+        // Split the line into separate words.
+        vector<string> wordVector = split(*iterLine,' ');
 
         // Examine each individual word.
-        string word;
-        iss >> word;
-        if (!word.empty()) {
-
-          // Make the word lowercase.
-          std::transform(word.begin(), word.end(), word.begin(), ::tolower);
+        for (vector<string>::iterator iterWord =wordVector.begin();
+                                      iterWord!=wordVector.end(); ++iterWord) {
+          string word = *iterWord;
 
           // Default is true. Set to false if the word fails validation.
           bool validWord = true;
@@ -522,7 +659,8 @@ string loadInputFile(string inputFileName) {
             //   (but only if there's anything actually in it)
             if ( snowballBuffer.size() > 1 ) {
               stringstream ss;
-              for (vector<string>::iterator iter = snowballBuffer.begin(); iter!=snowballBuffer.end(); ++iter)
+              for (vector<string>::iterator iter = snowballBuffer.begin();
+                                            iter!=snowballBuffer.end(); ++iter)
                   ss << *iter << " ";
               std::string s = ss.str();
               s.erase(s.find_last_not_of(" \n\r\t")+1);  // Right trim
@@ -546,7 +684,7 @@ string loadInputFile(string inputFileName) {
           }
           previousWord = word;
         }
-      } while (iss) ;
+      }
 
 
       // If there's anything in {snowballBuffer}, copy to {rawSnowball}
@@ -1244,10 +1382,11 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  // Default location for the files is now the *executable* directory.
+  // Default location for the files is the *executable* directory.
   //   (Not the working directory)
   lexiconFileName      = programPath + PathSeparator + lexiconFileName;
   preProcessedFileName = programPath + PathSeparator + preProcessedFileName;
+  thesaurusFileName    = programPath + PathSeparator + thesaurusFileName;
 
 
   // String stream for use with output messages.
@@ -1259,13 +1398,14 @@ int main(int argc, char* argv[]) {
   bool opt_q = false, opt_o = false, opt_v = false, opt_d = false;
   bool opt_s = false, opt_i = false;
   bool opt_p = false, opt_r = false, opt_l = false, opt_L = false;
+  bool opt_t = false, opt_T = false;
 
   // Handle option errors manually.
   extern int opterr; opterr = 0;
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:X:s:i::p:r:l:L")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:X:s:i::p:t:r:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1276,6 +1416,7 @@ int main(int argc, char* argv[]) {
       case 'v':  opt_v = true;  break;
       case 'd':  opt_d = true;  break;
       case 'L':  opt_L = true;  break;
+      case 'T':  opt_T = true;  break;
 
       // Specify how many snowballs to attempt to create.
       case 'n':
@@ -1336,6 +1477,12 @@ int main(int argc, char* argv[]) {
       case 'p': // -p snowball-preprocessed.txt
         opt_p = true;
         preProcessedFileName = optarg;
+        break;
+
+      // Specify the thesaurus file.
+      case 't': // -t snowball-thesaurus.txt
+        opt_t = true;
+        thesaurusFileName = optarg;
         break;
 
       // Create from raw text files.
@@ -1425,6 +1572,13 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
+  // Error if -t and -T
+  if (opt_t && opt_T) {
+    outputToConsole("You can't specify option -t as well as -T.", MSG_ERROR);
+    outputToConsoleUsage(MSG_ERROR);
+    return EXIT_FAILURE;
+  }
+
   // Disable all messages; do not write anything to standard output.
   outputIsQuiet = opt_q;
 
@@ -1440,6 +1594,8 @@ int main(int argc, char* argv[]) {
   // Don't use a lexicon file.
   useLexiconFile = !opt_L;
 
+  // Don't use a thesaurus file.
+  useThesaurusFile = !opt_T;
 
   // There are 3 ways of handling seed phrases:
   //      Don't use a seed phrase at all.
@@ -1512,6 +1668,8 @@ int main(int argc, char* argv[]) {
     << "\n  useLexiconFile: "            << useLexiconFile
     << "\n  lexiconFileName: "           << lexiconFileName
     << "\n  preProcessedFileName: "      << preProcessedFileName
+    << "\n  useThesaurusFile: "          << useThesaurusFile
+    << "\n  thesaurusFileName: "         << thesaurusFileName
     << "\n"
   ;
   outputToConsole(ss.str(), MSG_DEBUG);
@@ -1528,6 +1686,15 @@ int main(int argc, char* argv[]) {
       if ( !importLexicon(wordsLexicon,lexiconFileName) ) {
         outputToConsole("Specified lexicon file not found: " + lexiconFileName, MSG_ERROR);
         outputToConsole("Check the file is valid, or use the -L option to disable lexicon checking.", MSG_ERROR);
+        return EXIT_FAILURE;
+      }
+    }
+
+    // Load the thesaurus file if necessary.
+    if (useThesaurusFile) {
+      if ( !importThesaurus(wordsThesaurus,thesaurusFileName) ) {
+        outputToConsole("Specified thesaurus file not found: " + thesaurusFileName, MSG_ERROR);
+        outputToConsole("Check the file is valid, or use the -T option to disable thesaurus substitution.", MSG_ERROR);
         return EXIT_FAILURE;
       }
     }

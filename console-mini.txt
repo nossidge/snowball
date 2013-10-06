@@ -3,7 +3,7 @@ Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
                 [-P number] [-k number] [-b number] [-e number]
                 [-x chars] [-X number] [-i (delim) | -s file]
-                [-p file] [-r directory] [l file | -L]
+                [-p file] [-r directory] [l file | -L] [t file | -T]
 
 Example: snowball -r input
          snowball -s seed-phrases.txt
@@ -40,3 +40,5 @@ Processing raw input:
   -r ./input_directory           Create from raw English text files
   -l input-lexicon.txt           The file that contains list of valid words
   -L                             Don't use a lexicon file to validate words
+  -t snowball-thesaurus.txt      The file that contains the words to switch
+  -T                             Don't use a thesaurus file to switch words

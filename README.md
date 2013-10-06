@@ -115,7 +115,7 @@ The resulting processed file, of only the snowballing phrases, is 60MB in size.
 
 ## Input Files - Lexicon
 
-**snowball-lexicon.txt** (a different file can be specified with the "-l" option)
+**snowball-lexicon.txt** (Use "-l" to change the file name, and "-L" to disable)
 
 The text that I use is a bunch of files from Project Gutenberg. These are not
 guaranteed to be in English, and also, authors like to make up words sometimes
@@ -133,6 +133,27 @@ in the final snowball poems. This ensures that this word will never be used in
 the future, no matter what raw input text is used.
 
 The lexicon file is only used when reading from raw input files and creating
+the preprocessed files.
+
+## Input Files - Thesaurus
+
+**snowball-thesaurus.txt** (Use "-t" to change the file name, and "-T" to disable)
+
+The program will switch words like:
+
+    among amongst
+    colour color
+    compear compare
+    completely utterly totally absolutely
+
+In the last example, if it finds a line with "totally" in it, it adds three more
+lines, substituting the word with "completely", "utterly", and "absolutely".
+
+This can be used to switch between British and American English words, to fix
+common spelling errors, to correct archaic words to the current spelling, or to
+switch between synonyms.
+
+The thesaurus file is only used when reading from raw input files and creating
 the preprocessed files.
 
 ## Output Files
@@ -190,15 +211,6 @@ means that it also does not word pair between line breaks. This may perhaps be
 an issue with books from Project Gutenberg; as their text files are fixed width
 we could be missing some word pairs. Also, it ignores any word at the end of a
 sentence.
-
-### Thesaurus to interchange common synonyms
-It might be useful for the program to switch words like:
-
-    sings chirps chirrups coos cheeps tweets hoots
-    completely utterly totally absolutely
-
-So that if it finds a line with "totally" in it, it adds three more lines,
-substituting with "completely", "utterly", and "absolutely".
 
 ### Other languages
 It shouldn't be too tricky to alter this to accept Êúröpèāñ type accent
