@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.4"
-#define PROGRAM_DATE    "2013/10/06"
+#define PROGRAM_VERSION "Version 1.41"
+#define PROGRAM_DATE    "2013/10/08"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -601,101 +601,120 @@ string loadInputFile(string inputFileName) {
       getline(inputFile,line);
       std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 
-      // Use the thesaurus to expand to all possible variants.
-      vector<string> lineVector = lineExpandedFromThesaurus(line);
-
-      // For each line (may be more than one because of the thesaurus)
-      for (vector<string>::iterator iterLine =lineVector.begin();
-                                    iterLine!=lineVector.end(); ++iterLine) {
-        string previousWord;
-
-        // Split the line into separate words.
-        vector<string> wordVector = split(*iterLine,' ');
-
-        // Examine each individual word.
-        for (vector<string>::iterator iterWord =wordVector.begin();
-                                      iterWord!=wordVector.end(); ++iterWord) {
-          string word = *iterWord;
-
-          // Default is true. Set to false if the word fails validation.
-          bool validWord = true;
-
-          // If the word contains punctuation it is invalid.
-          unsigned int punctCount = 0;
-          for (string::iterator it = word.begin(); it!=word.end(); ++it)
-            if ( !isalpha(*it) ) ++punctCount;
-          if (punctCount != 0) {
-            validWord = false;
-          }
-
-          // Check the lexicon file, if necessary.
-          if (useLexiconFile) {
-
-            // If the word is not in the lexicon it is invalid.
-            bool isInLexicon = findInVector(wordsLexicon,word);
-            if ( validWord && !isInLexicon ) {
-              validWord = false;
-
-              // Write to {wordsNotInLexicon}, if necessary.
-              if (debugVectorsSaveToFile) {
-                wordsNotInLexicon.push_back(word);
-              }
-            }
-          }
-
-          // If the lengths are separated by just one letter.
-          bool validSnowball = ( (previousWord.length() != 0)
-               && (word.length() == previousWord.length()+1) );
-
-          // If the word contains punctuation, then drop it.
-          if (!validWord) word = "";
-
-          // If we have come to an invalid word, or one that breaks the
-          //   snowball sequence, then write whatever is in {snowballBuffer}
-          //   to the
-          if (!validSnowball || !validWord) {
-
-            // Print out the contents of the {snowballBuffer} vector
-            //   (but only if there's anything actually in it)
-            if ( snowballBuffer.size() > 1 ) {
-              stringstream ss;
-              for (vector<string>::iterator iter = snowballBuffer.begin();
-                                            iter!=snowballBuffer.end(); ++iter)
-                  ss << *iter << " ";
-              std::string s = ss.str();
-              s.erase(s.find_last_not_of(" \n\r\t")+1);  // Right trim
-              rawSnowball.push_back(s);
-            }
-
-            // Also, empty the {snowballBuffer} vector
-            std::vector<string> empty;
-            std::swap(snowballBuffer, empty);
-          }
-
-          // If the word is valid, add to {snowballBuffer}
-          if (validWord && validSnowball) {
-
-            // Add the word to the back of the {snowballBuffer} vector
-            // (Also add previousWord, if it hasn't already been)
-            if (snowballBuffer.size() == 0) {
-              snowballBuffer.push_back(previousWord);
-            }
-            snowballBuffer.push_back(word);
-          }
-          previousWord = word;
-        }
+      // Quick hack to fix memory issue when working with long lines.
+      // Split line up into 5000 character strings. This might mean that we
+      //   miss some possible snowballing phrases at the break of the lines,
+      //   but it also means that we don't run out of memory.
+      unsigned int const maxLen = 5000;
+      unsigned int lineSize = line.size();
+      vector<string> lineVectorOrig;
+      for (unsigned int i = 0; i <= (lineSize / maxLen); i++) {
+        string linePart = line.substr(i*maxLen,maxLen);
+        lineVectorOrig.push_back(linePart);
       }
 
+      // For each string in {lineVectorOrig}
+      for (vector<string>::iterator iterLineOrig =lineVectorOrig.begin();
+                                    iterLineOrig!=lineVectorOrig.end();
+                                    ++iterLineOrig) {
 
-      // If there's anything in {snowballBuffer}, copy to {rawSnowball}
-      if ( snowballBuffer.size() > 1 ) {
-        stringstream ss;
-        for (vector<string>::iterator iter = snowballBuffer.begin();
-                                      iter!= snowballBuffer.end(); ++iter)
-            ss << *iter << " ";
-        std::string s = ss.str();
-        s.erase(s.find_last_not_of(" ")+1);
-        rawSnowball.push_back(s);
+        // Use the thesaurus to expand to all possible variants.
+        //vector<string> lineVector = lineExpandedFromThesaurus(line);
+        vector<string> lineVector = lineExpandedFromThesaurus(*iterLineOrig);
+
+        // For each line (may be more than one because of the thesaurus)
+        for (vector<string>::iterator iterLine =lineVector.begin();
+                                      iterLine!=lineVector.end(); ++iterLine) {
+          string previousWord;
+
+          // Split the line into separate words.
+          vector<string> wordVector = split(*iterLine,' ');
+
+          // Examine each individual word.
+          for (vector<string>::iterator iterWord =wordVector.begin();
+                                        iterWord!=wordVector.end(); ++iterWord) {
+            string word = *iterWord;
+
+            // Default is true. Set to false if the word fails validation.
+            bool validWord = true;
+
+            // If the word contains punctuation it is invalid.
+            unsigned int punctCount = 0;
+            for (string::iterator it = word.begin(); it!=word.end(); ++it)
+              if ( !isalpha(*it) ) ++punctCount;
+            if (punctCount != 0) {
+              validWord = false;
+            }
+
+            // Check the lexicon file, if necessary.
+            if (useLexiconFile) {
+
+              // If the word is not in the lexicon it is invalid.
+              bool isInLexicon = findInVector(wordsLexicon,word);
+              if ( validWord && !isInLexicon ) {
+                validWord = false;
+
+                // Write to {wordsNotInLexicon}, if necessary.
+                if (debugVectorsSaveToFile) {
+                  wordsNotInLexicon.push_back(word);
+                }
+              }
+            }
+
+            // If the lengths are separated by just one letter.
+            bool validSnowball = ( (previousWord.length() != 0)
+                 && (word.length() == previousWord.length()+1) );
+
+            // If the word contains punctuation, then drop it.
+            if (!validWord) word = "";
+
+            // If we have come to an invalid word, or one that breaks the
+            //   snowball sequence, then write whatever is in {snowballBuffer}
+            //   to the
+            if (!validSnowball || !validWord) {
+
+              // Print out the contents of the {snowballBuffer} vector
+              //   (but only if there's anything actually in it)
+              if ( snowballBuffer.size() > 1 ) {
+                stringstream ss;
+                for (vector<string>::iterator iter = snowballBuffer.begin();
+                                              iter!=snowballBuffer.end(); ++iter)
+                    ss << *iter << " ";
+                std::string s = ss.str();
+                s.erase(s.find_last_not_of(" \n\r\t")+1);  // Right trim
+                rawSnowball.push_back(s);
+              }
+
+              // Also, empty the {snowballBuffer} vector
+              std::vector<string> empty;
+              std::swap(snowballBuffer, empty);
+            }
+
+            // If the word is valid, add to {snowballBuffer}
+            if (validWord && validSnowball) {
+
+              // Add the word to the back of the {snowballBuffer} vector
+              // (Also add previousWord, if it hasn't already been)
+              if (snowballBuffer.size() == 0) {
+                snowballBuffer.push_back(previousWord);
+              }
+              snowballBuffer.push_back(word);
+            }
+            previousWord = word;
+          }
+        }
+
+
+        // If there's anything in {snowballBuffer}, copy to {rawSnowball}
+        if ( snowballBuffer.size() > 1 ) {
+          stringstream ss;
+          for (vector<string>::iterator iter = snowballBuffer.begin();
+                                        iter!= snowballBuffer.end(); ++iter)
+              ss << *iter << " ";
+          std::string s = ss.str();
+          s.erase(s.find_last_not_of(" ")+1);
+          rawSnowball.push_back(s);
+        }
       }
     }
     inputFile.close();
