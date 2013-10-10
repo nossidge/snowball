@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.41"
-#define PROGRAM_DATE    "2013/10/08"
+#define PROGRAM_VERSION "Version 1.42"
+#define PROGRAM_DATE    "2013/10/10"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +91,7 @@ unsigned int poemWordEnd = 8;
 // Should we exclude any characters (for lipogram output).
 bool excludeAnyChars = false;
 string excludedChars = "";
-unsigned int excludedCharMinWordLength = 0;
+unsigned int exCMinWordLength = 0;
 
 // Seed phrases. File name and the delimiter between each.
 string seedPhrasesFileName = "";
@@ -145,7 +145,7 @@ map<string,vector<string> > wordsBackwards;
 // Only output MSG_DEBUG stuff if (outputIsVerbose)
 // If (outputPoemsOnly), only output MSG_POEMs
 enum MsgType { MSG_STANDARD, MSG_ERROR, MSG_DEBUG, MSG_POEM };
-void outputToConsole(string message, MsgType type) {
+void outputToConsole(string const &message, MsgType const &type) {
   if (outputPoemsOnly && (type == MSG_POEM) ) {
     cout << message << endl;
   } else if (!outputPoemsOnly && !outputIsQuiet) {
@@ -167,7 +167,7 @@ void outputToConsoleMajorError() {
   ;
   outputToConsole(ss.str(),MSG_ERROR);
 }
-void outputToConsoleVersion(MsgType type) {
+void outputToConsoleVersion(MsgType const &type) {
   ostringstream ss;
   ss <<
     "\n  Snowball Poem Generator - " PROGRAM_VERSION " - " PROGRAM_DATE
@@ -177,7 +177,7 @@ void outputToConsoleVersion(MsgType type) {
   ;
   outputToConsole(ss.str(),type);
 }
-void outputToConsoleUsage(MsgType type) {
+void outputToConsoleUsage(MsgType const &type) {
   ostringstream ss;
   ss <<
     "\nUsage: snowball [-h | -V]"
@@ -189,7 +189,7 @@ void outputToConsoleUsage(MsgType type) {
   ;
   outputToConsole(ss.str(),type);
 }
-void outputToConsoleHelp(MsgType type) {
+void outputToConsoleHelp(MsgType const &type) {
   outputToConsoleVersion(type);
   outputToConsoleUsage(type);
   ostringstream ss;
@@ -236,7 +236,7 @@ void outputToConsoleHelp(MsgType type) {
   outputToConsole(ss.str(),type);
 }
 /// ////////////////////////////////////////////////////////////////////////////
-// Not sure if I'll need this, but it's good for debugging.
+// User-friendly console output.
 string toString(vector<string> &inputVector, string delimiter) {
   string returnString = "";
   for (vector<string>::iterator iter = inputVector.begin();
@@ -246,31 +246,29 @@ string toString(vector<string> &inputVector, string delimiter) {
   returnString.erase(returnString.find_last_not_of(delimiter)+1);
   return returnString;
 }
-/// ////////////////////////////////////////////////////////////////////////////
-/// Split a string into a string vector
-/// http://stackoverflow.com/questions/236129/splitting-a-string-in-c/236803#236803
-vector<string> &split(const string &s, char delim, vector<string> &elems) {
-    stringstream ss(s);
-    string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-    return elems;
-}
-vector<string> split(const string &s, char delim) {
-    vector<string> elems;
-    split(s, delim, elems);
-    return elems;
+string toString(bool inputBool) {
+  return (inputBool ? "True" : "False");
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool findInVector(vector<string> &haystack, string needle) {
+// Split a string into a string vector
+// http://stackoverflow.com/questions/236129/splitting-a-string-in-c/236803#236803
+vector<string> split(string const &stringToSplit, char delim) {
+  vector<string> returnVector;
+  string item;
+  stringstream ss(stringToSplit);
+  while (std::getline(ss, item, delim)) {
+    returnVector.push_back(item);
+  }
+  return returnVector;
+}
+/// ////////////////////////////////////////////////////////////////////////////
+bool findInVector(vector<string> const &haystack, string const &needle) {
   return (std::binary_search(haystack.begin(), haystack.end(), needle));
 }
 /// ////////////////////////////////////////////////////////////////////////////
 void sortAndDedupe(vector<string> &inputVector) {
-  vector<string>::iterator iter;
   std::sort (inputVector.begin(), inputVector.end());
-  iter = std::unique (inputVector.begin(), inputVector.end());
+  vector<string>::iterator iter = std::unique(inputVector.begin(), inputVector.end());
   inputVector.resize( std::distance(inputVector.begin(),iter) );
 }
 void sortAndDedupe(map<int, vector<string> > &inputVector) {
@@ -280,9 +278,11 @@ void sortAndDedupe(map<int, vector<string> > &inputVector) {
   }
 }
 /// ////////////////////////////////////////////////////////////////////////////
-void vectorSaveToFile(vector< vector<string> > &inputVector, string fileName,
-                      bool appendToFile) {
-  outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
+void vectorSaveToFile(vector< vector<string> > const &inputVector,
+                      string const &fileName,
+                      bool appendToFile,
+                      bool consoleDebug = true) {
+  if (consoleDebug) outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   if (appendToFile) {
@@ -299,9 +299,11 @@ void vectorSaveToFile(vector< vector<string> > &inputVector, string fileName,
   outputFile.close();
 }
 
-void vectorSaveToFile(vector<string> &inputVector, string fileName,
-                      bool appendToFile) {
-  outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
+void vectorSaveToFile(vector<string> const &inputVector,
+                      string const &fileName,
+                      bool appendToFile,
+                      bool consoleDebug = true) {
+  if (consoleDebug) outputToConsole("vectorSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
   if (appendToFile) {
@@ -322,7 +324,7 @@ void vectorSaveToFile(vector<string> &inputVector, string fileName,
 // "i|am the"
 // "i|am|the wind"
 void mapSaveToFile(map<string, vector<string> > &inputVector,
-                   string fileName) {
+                   string const &fileName) {
   outputToConsole("mapSaveToFile: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
@@ -349,7 +351,7 @@ void mapSaveToFile(map<string, vector<string> > &inputVector,
 // "Key:    i|am|the"
 // "Values: wind"
 void mapSaveToFileKeyHeader(map<string, vector<string> > &inputVector,
-                            string fileName) {
+                            string const &fileName) {
   outputToConsole("mapSaveToFileKeyHeader: " + fileName, MSG_DEBUG);
 
   ofstream outputFile;
@@ -378,7 +380,7 @@ void mapSaveToFileKeyHeader(map<string, vector<string> > &inputVector,
 // "        an"
 // "        at"
 void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
-                            string fileName) {
+                            string const &fileName) {
   outputToConsole("mapSaveToFileKeyHeader: " + fileName, MSG_DEBUG);
 
   // Print the map to a file
@@ -399,11 +401,10 @@ void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
 /// ////////////////////////////////////////////////////////////////////////////
 // Save all single word keys in {wordsBackwards} that are not
 //   keys in {wordsForwards}
-void saveToFileDeadBranches(string fileName) {
+void saveToFileDeadBranches(string const &fileName) {
   outputToConsole("saveToFileDeadBranches: " + fileName, MSG_DEBUG);
 
   vector<string> deadBranches;
-
   for(map<string,vector<string> >::iterator iter = wordsBackwards.begin();
                                             iter != wordsBackwards.end();
                                             ++iter) {
@@ -421,7 +422,8 @@ void saveToFileDeadBranches(string fileName) {
   vectorSaveToFile(deadBranches,fileName,false);
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool importLexicon(vector<string> &inputVector, string fileName) {
+// Import the lexicon file to the global vector {wordsLexicon}
+bool importLexicon(string const &fileName) {
   outputToConsole("importLexicon: " + fileName, MSG_DEBUG);
 
   // Load the lexicon file. This contains a list of words, one per line.
@@ -459,14 +461,8 @@ bool importLexicon(vector<string> &inputVector, string fileName) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
-/*  map<string,vector<string> > wordsThesaurus;
-    [keyWord],    [wordsThesaurus]
-    {honor},      {honour}
-    {honour},     {honor}
-    {completely}, {utterly, totally}
-    {utterly},    {totally, completely}
-    {totally},    {completely, utterly}    */
-bool importThesaurus(map<string,vector<string> > &inputMap, string fileName) {
+// Import the thesaurus file to the global vector {wordsThesaurus}
+bool importThesaurus(string const &fileName) {
   outputToConsole("importThesaurus: " + fileName, MSG_DEBUG);
 
   // Load the thesaurus file.
@@ -492,9 +488,9 @@ bool importThesaurus(map<string,vector<string> > &inputMap, string fileName) {
       for (unsigned int i = 0; i < wordVector.size(); i++) {
         std::rotate(wordVector.begin(),wordVector.begin()+1,wordVector.end());
 
-        // Load to inputMap.
+        // Load to {wordsThesaurus}.
         for (unsigned int j = 1; j < wordVector.size(); j++) {
-          inputMap[wordVector[0]].push_back(wordVector[j]);
+          wordsThesaurus[wordVector[0]].push_back(wordVector[j]);
         }
       }
     }
@@ -515,7 +511,7 @@ bool importThesaurus(map<string,vector<string> > &inputMap, string fileName) {
 // The colours we view while dreaming
 // The colours we view whilst dreaming
 //
-vector<string> lineExpandedFromThesaurus(string &inputString) {
+vector<string> lineExpandedFromThesaurus(string const &inputString) {
   vector<string> phrases;
 
   // Just return inputString if we don't need to use the thesaurus.
@@ -568,12 +564,11 @@ vector<string> lineExpandedFromThesaurus(string &inputString) {
   return phrases;
 }
 /// ////////////////////////////////////////////////////////////////////////////
-/// This function reads an unprocessed natural language text file (specified
-///   in inputFileName), extracts just the word phrases that snowball upwards
-///   in letter count, and outputs to a separate file whose name is returned
-///   as the function's return value.
-string loadInputFile(string inputFileName) {
-  outputToConsole("loadInputFile:  Input: " + inputFileName, MSG_DEBUG);
+// This function reads an unprocessed natural language text file, extracts
+//   just the word phrases that snowball upwards in letter count, and outputs
+//   to a separate file whose name is returned as the function's return value.
+string loadInputFile(string const &fileName) {
+  outputToConsole("loadInputFile:  Input: " + fileName, MSG_DEBUG);
 
   // We need to save each with a different file number suffix.
   // So we need to track how many files have been read.
@@ -588,7 +583,7 @@ string loadInputFile(string inputFileName) {
 
   // Loop through the raw input file.
   ifstream inputFile;
-  inputFile.open(inputFileName.c_str());
+  inputFile.open(fileName.c_str());
 
   if (inputFile.is_open()) {
     while (inputFile.good()) {
@@ -625,6 +620,8 @@ string loadInputFile(string inputFileName) {
         // For each line (may be more than one because of the thesaurus)
         for (vector<string>::iterator iterLine =lineVector.begin();
                                       iterLine!=lineVector.end(); ++iterLine) {
+
+          // Initialise this for each line.
           string previousWord;
 
           // Split the line into separate words.
@@ -704,7 +701,6 @@ string loadInputFile(string inputFileName) {
           }
         }
 
-
         // If there's anything in {snowballBuffer}, copy to {rawSnowball}
         if ( snowballBuffer.size() > 1 ) {
           stringstream ss;
@@ -732,7 +728,7 @@ string loadInputFile(string inputFileName) {
   // Save the raw snowball vector to a temporary "pro-" file.
   stringstream ss;
   ss << "pro-" << setw(5) << setfill('0') << functionCounter << ".txt";
-  vectorSaveToFile(rawSnowball,ss.str(),true);
+  vectorSaveToFile(rawSnowball,ss.str(),true,false);
 
   // Output debug info to console.
   outputToConsole("loadInputFile: Output: " + ss.str(), MSG_DEBUG);
@@ -741,7 +737,9 @@ string loadInputFile(string inputFileName) {
   return ss.str();
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool openInputPreprocessed(string fileName) {
+// Import a preprocessed snowballing corpus file to the global vectors:
+//   {wordsForwards}  {wordsBackwards}  {wordsWithLength}
+bool openInputPreprocessed(string const &fileName) {
   outputToConsole("openInputPreprocessed: " + fileName, MSG_DEBUG);
 
   vector<string> inputPreprocessed;
@@ -797,7 +795,8 @@ bool openInputPreprocessed(string fileName) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
+bool loadInputFilesFromDirectory(string const &directoryPath,
+                                 string const &fileNameOut) {
   outputToConsole("loadInputFilesFromDirectory: " + directoryPath, MSG_DEBUG);
 
   // We will loop through the root directory to load each file.
@@ -840,7 +839,7 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
   vector<string> allInputLines;
 
   // We now have a snowball output file for each input file in the directory.
-  // Let's go through them, cat all them together and delete the originals.
+  // Let's go through them, cat them all together and delete the originals.
   for (unsigned int i = 0; i < allInputFiles.size(); i++) {
     string currentFileName = allInputFiles[i];
 
@@ -858,11 +857,10 @@ bool loadInputFilesFromDirectory(string directoryPath, string fileNameOut) {
     }
     inputFile.close();
 
+    // Delete the file when finished.
     if( remove( currentFileName.c_str() ) != 0 ) {
       outputToConsole("Error deleting temporary file: " + currentFileName, MSG_ERROR);
       return false;
-    } else {
-      outputToConsole("Temporary file successfully deleted: " + currentFileName, MSG_DEBUG);
     }
   }
 
@@ -942,7 +940,7 @@ vector<string> validWords(vector<string> &inputVector) {
     return inputVector;
   } else {
 
-    if (inputVector[0].length() >= excludedCharMinWordLength) {
+    if (inputVector[0].length() >= exCMinWordLength) {
       return filterOutExcludedChars(inputVector,excludedChars);
     } else {
       return inputVector;
@@ -969,7 +967,7 @@ string randomValidElement(vector<string> &inputVector) {
 /// ////////////////////////////////////////////////////////////////////////////
 // Snowball poem creator.
 // string seedPhrase - Optional phrase to include in each snowball.
-bool createPoemSnowball(string seedPhrase) {
+bool createPoemSnowball(string const &seedPhrase) {
   string fileName;
 
   // Only need the file name if it's going to be written to a file.
@@ -1008,7 +1006,7 @@ bool createPoemSnowball(string seedPhrase) {
   // Make sure the "excludedChars" isn't too restrictive.
   if (excludeAnyChars) {
 
-    unsigned int wordLengthToCheck = excludedCharMinWordLength;
+    unsigned int wordLengthToCheck = exCMinWordLength;
     if (wordLengthToCheck == 0) {
       wordLengthToCheck = poemWordBegin;
     }
@@ -1330,7 +1328,8 @@ bool createPoemSnowball(string seedPhrase) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool loadSeedPhrasesFromFile(vector<string> &inputVector, string fileName) {
+bool loadSeedPhrasesFromFile(vector<string> &inputVector,
+                             string const &fileName) {
   outputToConsole("loadSeedPhrasesFromFile: " + fileName, MSG_DEBUG);
 
   // Loop through the input file and fill to {inputVector}
@@ -1477,7 +1476,7 @@ int main(int argc, char* argv[]) {
       // Word length to begin 'x' filtering.
       case 'X':
         excludeAnyChars = true;
-        excludedCharMinWordLength = (unsigned int)abs(atoi(optarg));
+        exCMinWordLength = (unsigned int)abs(atoi(optarg));
         break;
 
       // Take seed phrases as input from a file.
@@ -1662,33 +1661,39 @@ int main(int argc, char* argv[]) {
     processRawText = true;
   }
 
-  // Debug state of the program due to the options.
+  // Debug - Output the state of the program as specified by the input options.
+  // Lines that begin with a hyphen are directly controlled by input options,
+  //   lines that don't are inferred from the option.
   ss.str("");
-  ss<< "\n  workingPath: "               << workingPath
-    << "\n  programPath: "               << programPath
-    << "\n  programFile: "               << programFile
+  ss<< "\n  workingPath:  " << workingPath
+    << "\n  programPath:  " << programPath
+    << "\n  programFile:  " << programFile
     << "\n"
-    << "\n  outputIsVerbose: "           << outputIsVerbose
-    << "\n  outputIsQuiet: "             << outputIsQuiet
-    << "\n  outputPoemsOnly: "           << outputPoemsOnly
-    << "\n  processRawText: "            << processRawText
-    << "\n  directoryRawInput: "         << directoryRawInput
-    << "\n  debugVectorsSaveToFile: "    << debugVectorsSaveToFile
-    << "\n  poemTarget: "                << poemTarget
-    << "\n  poemFailureMax: "            << poemFailureMax
-    << "\n  multiKeyPercentage: "        << multiKeyPercentage
-    << "\n  poemWordBegin: "             << poemWordBegin
-    << "\n  usePoemWordEnd: "            << usePoemWordEnd
-    << "\n  poemWordEnd: "               << poemWordEnd
-    << "\n  excludeAnyChars: "           << excludeAnyChars
-    << "\n  excludedChars: "             << excludedChars
-    << "\n  excludedCharMinWordLength: " << excludedCharMinWordLength
-    << "\n  seedPhrasesFileName: "       << seedPhrasesFileName
-    << "\n  useLexiconFile: "            << useLexiconFile
-    << "\n  lexiconFileName: "           << lexiconFileName
-    << "\n  preProcessedFileName: "      << preProcessedFileName
-    << "\n  useThesaurusFile: "          << useThesaurusFile
-    << "\n  thesaurusFileName: "         << thesaurusFileName
+    << "\n  -v  outputIsVerbose:         " << toString(outputIsVerbose)
+    << "\n  -q  outputIsQuiet:           " << toString(outputIsQuiet)
+    << "\n  -o  outputPoemsOnly:         " << toString(outputPoemsOnly)
+    << "\n  -d  debugVectorsSaveToFile:  " << toString(debugVectorsSaveToFile)
+    << "\n"
+    << "\n   r  processRawText:          " << toString(processRawText)
+    << "\n  -r  directoryRawInput:       " << directoryRawInput
+    << "\n"
+    << "\n  -p  preProcessedFileName:    " << preProcessedFileName
+    << "\n  -L  useLexiconFile:          " << toString(useLexiconFile)
+    << "\n  -l  lexiconFileName:         " << lexiconFileName
+    << "\n  -T  useThesaurusFile:        " << toString(useThesaurusFile)
+    << "\n  -t  thesaurusFileName:       " << thesaurusFileName
+    << "\n  -i  seedPhrases:             " << toString(seedPhrases," - ")
+    << "\n  -s  seedPhrasesFileName:     " << seedPhrasesFileName
+    << "\n"
+    << "\n  -n  poemTarget:              " << poemTarget
+    << "\n  -f  poemFailureMax:          " << poemFailureMax
+    << "\n  -P  multiKeyPercentage:      " << multiKeyPercentage
+    << "\n  -b  poemWordBegin:           " << poemWordBegin
+    << "\n   e  usePoemWordEnd:          " << toString(usePoemWordEnd)
+    << "\n  -e  poemWordEnd:             " << poemWordEnd
+    << "\n   x  excludeAnyChars:         " << toString(excludeAnyChars)
+    << "\n  -x  excludedChars:           " << excludedChars
+    << "\n  -X  exCMinWordLength:        " << exCMinWordLength
     << "\n"
   ;
   outputToConsole(ss.str(), MSG_DEBUG);
@@ -1702,7 +1707,7 @@ int main(int argc, char* argv[]) {
 
     // Load the lexicon file if necessary.
     if (useLexiconFile) {
-      if ( !importLexicon(wordsLexicon,lexiconFileName) ) {
+      if ( !importLexicon(lexiconFileName) ) {
         outputToConsole("Specified lexicon file not found: " + lexiconFileName, MSG_ERROR);
         outputToConsole("Check the file is valid, or use the -L option to disable lexicon checking.", MSG_ERROR);
         return EXIT_FAILURE;
@@ -1711,7 +1716,7 @@ int main(int argc, char* argv[]) {
 
     // Load the thesaurus file if necessary.
     if (useThesaurusFile) {
-      if ( !importThesaurus(wordsThesaurus,thesaurusFileName) ) {
+      if ( !importThesaurus(thesaurusFileName) ) {
         outputToConsole("Specified thesaurus file not found: " + thesaurusFileName, MSG_ERROR);
         outputToConsole("Check the file is valid, or use the -T option to disable thesaurus substitution.", MSG_ERROR);
         return EXIT_FAILURE;
