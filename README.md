@@ -43,7 +43,7 @@ https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe?raw=tr
 
 Also download these two text files, and save them in the same folder as the program:
 https://github.com/nossidge/snowball/blob/master/snowball-lexicon.txt?raw=true
-https://github.com/nossidge/snowball/blob/master/snowball-preprocessed.txt?raw=true
+https://github.com/nossidge/snowball/blob/master/snowball-corpus.txt?raw=true
 
 To use it, see the "Most common options" section of console-detailed.txt:
 https://github.com/nossidge/snowball/blob/master/console-detailed.txt
@@ -63,9 +63,9 @@ This program reads input from plain English text files. It examines each file
 line by line, for any word phrases in which the length of each word varies from
 the previous word by one letter, e,g. "his face", "in the land".
 
-It saves each phrase it finds as a separate line in a "preprocessed" text file.
-In future program runs this file can be read, so that the whole directory of
-raw English input files does not have to be processed each time.
+It saves each phrase it finds as a separate line in a preprocessed "corpus" text
+file. In future program runs this file can be read, so that the whole directory
+of raw English input files does not have to be processed each time.
 
 The program will generate a batch of Snowball poems each time. In general, it
 starts at a one letter word ("A", "I", "O") and randomly traverses a Markov tree
@@ -92,19 +92,22 @@ As such, this might fail if there are no "parents" to a word's "child". The
 program will abort after a certain number of beginning-less poems are generated,
 but will output any poems it has found up to that point.
 
-## Input Files - Raw English Text - Preprocessed Text
+## Input Files - Raw English Text - Corpus
 
 When the "-r" option is specified, the program loops through a directory and
 loads each file it finds there. It does no error checking, so make sure that
 the directory contains only text files.
 
-A great feature of the preprocessed files is that, in addition to
-their use as preprocessed input, they can also be used as raw input. So if you
-want to search more text for snowball phrases, you can put the raw files in a
-directory with your existing preprocessed file and set the program to create
-phrases from that directory. This will output a new preprocessed file which
-contains all the phrases from the original preprocessed file, together with any
-new phrases found in the new raw files.
+It then saves all the snowballing phrases to a corpus file, so that it can be
+read from quickly in future runs.
+
+A great feature of the corpus files is that, in addition to their use as
+preprocessed input, they can also be used as raw input. So if you want to search
+more text for snowball phrases, you can put the raw files in a directory with
+your existing corpus file and set the program to create phrases from that
+directory. This will output a new corpus file which contains all the phrases
+from the original corpus file, together with any new phrases found in the new
+raw files.
 
 The input that I am currently using for this is mostly the text files
 contained in the Project Gutenberg 2010 DVD:
@@ -133,7 +136,7 @@ in the final snowball poems. This ensures that this word will never be used in
 the future, no matter what raw input text is used.
 
 The lexicon file is only used when reading from raw input files and creating
-the preprocessed files.
+the corpus files.
 
 ## Input Files - Thesaurus
 
@@ -154,7 +157,7 @@ common spelling errors, to correct archaic words to the current spelling, or to
 switch between synonyms.
 
 The thesaurus file is only used when reading from raw input files and creating
-the preprocessed files.
+the corpus files.
 
 ## Output Files
 
@@ -165,7 +168,7 @@ This is the final output of all the created poems. The numbers are a timestamp.
 This is the final output of all the created poems. These poems have all been
 generated from the seed phrase "seed phrase" within the square brackets.
 
-**snowball-preprocessed.txt**
+**snowball-corpus.txt**
 This file is generated from raw text when using the -r option. It only contains
 the phrases that snowball upwards by one letter. It is used as quick input to
 the snowball generator so the program doesn't have to generate from raw text
@@ -186,11 +189,8 @@ This information is only used in the program when a seed phrase necessitates
 looping backwards to find the opening of a poem.
 
 **output-wordsWithLength.txt**
-Lists all words alphabetically by length.
-This is actually only used in the program to select a 1 or 2 letter word that
-starts off a poem, but it is interesting enough as incidental information for me
-to have kept it in. Since it is used to find forward growing snowballs, it only
-includes the first word in a given word pair, not the last.
+Lists all words alphabetically by length. This only includes words that are not
+"dead branches" - i.e. words which chain to a subsequent word one letter longer.
 
 **output-wordsDeadBranches.txt**
 Lists all single word keys in wordsBackwards that are not keys in wordsForwards.

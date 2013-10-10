@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.42"
-#define PROGRAM_DATE    "2013/10/10"
+#define PROGRAM_VERSION "Version 1.43"
+#define PROGRAM_DATE    "2013/10/11"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,8 +101,8 @@ char seedPhraseDelim = '\n';
 bool useLexiconFile = true;
 string lexiconFileName = "snowball-lexicon.txt";
 
-// The file to use to input preprocessed snowball phrases.
-string preProcessedFileName = "snowball-preprocessed.txt";
+// The corpus file that contains preprocessed snowball phrases.
+string corpusFileName = "snowball-corpus.txt";
 
 // The file to use to interchange raw text input words.
 bool useThesaurusFile = true;
@@ -182,9 +182,9 @@ void outputToConsoleUsage(MsgType const &type) {
   ss <<
     "\nUsage: snowball [-h | -V]"
     "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
-    "\n                [-P number] [-k number] [-b number] [-e number]"
+    "\n                [-p number] [-k number] [-b number] [-e number]"
     "\n                [-x chars] [-X number] [-i (delim) | -s file]"
-    "\n                [-p file] [-r directory] [l file | -L] [t file | -T]"
+    "\n                [-c file] [-r directory] [l file | -L] [t file | -T]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -210,10 +210,10 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n  -d        Debug. Write internal program vectors to separate files"
     "\n"
     "\nSnowball generation:"
-    "\n                ( Arguments are all numeric integers )"
+    "\n                ( Arguments should be numeric integers )"
     "\n  -n10000       Specify how many snowballs to attempt to create"
     "\n  -f100000      Failed poems to ignore before just giving up"
-    "\n  -P70          Percentage chance to use longer word keys before shorter keys"
+    "\n  -p70          Percentage chance to use longer word keys before shorter keys"
     "\n  -k1           Specify a minimum word key size to use. Default is 1"
     "\n  -b4           Begin poems at a word length other than 1"
     "\n  -e8           Reject poems where last word is fewer than 'n' letters long"
@@ -225,12 +225,12 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n  -i [ delim ]      Input seed phrases from stdin, 'delim' delimited"
     "\n"
     "\nProcessing raw input:"
-    "\n  -p snowball-preprocessed.txt   Specify the preprocessed input file"
-    "\n  -r ./input_directory           Create from raw English text files"
-    "\n  -l snowball-lexicon.txt        The file that contains list of valid words"
-    "\n  -L                             Don't use a lexicon file to validate words"
-    "\n  -t snowball-thesaurus.txt      The file that contains the words to switch"
-    "\n  -T                             Don't use a thesaurus file to switch words"
+    "\n  -c snowball-corpus.txt      The corpus file containing snowballing words"
+    "\n  -r ./input_directory        Create from raw English text files"
+    "\n  -l snowball-lexicon.txt     The file that contains list of valid words"
+    "\n  -L                          Don't use a lexicon file to validate words"
+    "\n  -t snowball-thesaurus.txt   The file that contains the words to switch"
+    "\n  -T                          Don't use a thesaurus file to switch words"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -739,10 +739,10 @@ string loadInputFile(string const &fileName) {
 /// ////////////////////////////////////////////////////////////////////////////
 // Import a preprocessed snowballing corpus file to the global vectors:
 //   {wordsForwards}  {wordsBackwards}  {wordsWithLength}
-bool openInputPreprocessed(string const &fileName) {
-  outputToConsole("openInputPreprocessed: " + fileName, MSG_DEBUG);
+bool openInputCorpus(string const &fileName) {
+  outputToConsole("openInputCorpus: " + fileName, MSG_DEBUG);
 
-  vector<string> inputPreprocessed;
+  vector<string> inputCorpus;
 
   // Loop through the raw input file.
   ifstream inputFile;
@@ -893,7 +893,7 @@ bool loadInputFilesFromDirectory(string const &directoryPath,
   */
   outputToConsole("Generating processed input file", MSG_DEBUG);
 
-  vector<string> inputPreprocessed;
+  vector<string> inputCorpus;
   for (unsigned int k = 0; k < allInputLines.size(); k++) {
     vector<string> wordVector;
     wordVector = split(allInputLines[k],' ');
@@ -901,12 +901,12 @@ bool loadInputFilesFromDirectory(string const &directoryPath,
       string s = wordVector[i];
       for (int j = i-1; j >= 0; j--) {
         s = wordVector[j] + " " + s;
-        inputPreprocessed.push_back(s);
+        inputCorpus.push_back(s);
       }
     }
   }
-  sortAndDedupe(inputPreprocessed);
-  vectorSaveToFile(inputPreprocessed,fileNameOut,false);
+  sortAndDedupe(inputCorpus);
+  vectorSaveToFile(inputCorpus,fileNameOut,false);
 
   return true;
 }
@@ -1402,9 +1402,9 @@ int main(int argc, char* argv[]) {
 
   // Default location for the files is the *executable* directory.
   //   (Not the working directory)
-  lexiconFileName      = programPath + PathSeparator + lexiconFileName;
-  preProcessedFileName = programPath + PathSeparator + preProcessedFileName;
-  thesaurusFileName    = programPath + PathSeparator + thesaurusFileName;
+  lexiconFileName   = programPath + PathSeparator + lexiconFileName;
+  corpusFileName    = programPath + PathSeparator + corpusFileName;
+  thesaurusFileName = programPath + PathSeparator + thesaurusFileName;
 
 
   // String stream for use with output messages.
@@ -1415,7 +1415,7 @@ int main(int argc, char* argv[]) {
   bool opt_h = false, opt_V = false;
   bool opt_q = false, opt_o = false, opt_v = false, opt_d = false;
   bool opt_s = false, opt_i = false;
-  bool opt_p = false, opt_r = false, opt_l = false, opt_L = false;
+  bool opt_c = false, opt_r = false, opt_l = false, opt_L = false;
   bool opt_t = false, opt_T = false;
 
   // Handle option errors manually.
@@ -1423,7 +1423,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:P:k:b:e:x:X:s:i::p:t:r:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:p:k:b:e:x:X:s:i::c:t:r:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1447,7 +1447,7 @@ int main(int argc, char* argv[]) {
         break;
 
       // Specify the multi-key percentage.
-      case 'P':
+      case 'p':
         multiKeyPercentage = (unsigned int)abs(atoi(optarg));
         break;
 
@@ -1491,10 +1491,10 @@ int main(int argc, char* argv[]) {
         if (optarg != NULL) seedPhraseDelim = (char)optarg[0];
         break;
 
-      // Specify the preprocessed input file.
-      case 'p': // -p snowball-preprocessed.txt
-        opt_p = true;
-        preProcessedFileName = optarg;
+      // Specify the corpus input file.
+      case 'c': // -c snowball-corpus.txt
+        opt_c = true;
+        corpusFileName = optarg;
         break;
 
       // Specify the thesaurus file.
@@ -1639,13 +1639,13 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Specify the preprocessed input file.
-  // Check if "preProcessedFileName" is an existing file.
+  // Specify the corpus input file.
+  // Check if "corpusFileName" is an existing file.
   // (Don't do this if we're creating a new one with -r)
-  if (opt_p && !opt_r) {
-    ifstream inputFile(preProcessedFileName.c_str());
+  if (opt_c && !opt_r) {
+    ifstream inputFile(corpusFileName.c_str());
     if ( !inputFile.good() ) {
-      outputToConsole("Specified preprocessed file not found: " + preProcessedFileName, MSG_ERROR);
+      outputToConsole("Specified corpus file not found: " + corpusFileName, MSG_ERROR);
       return EXIT_FAILURE;
     }
   }
@@ -1677,7 +1677,7 @@ int main(int argc, char* argv[]) {
     << "\n   r  processRawText:          " << toString(processRawText)
     << "\n  -r  directoryRawInput:       " << directoryRawInput
     << "\n"
-    << "\n  -p  preProcessedFileName:    " << preProcessedFileName
+    << "\n  -c  corpusFileName:          " << corpusFileName
     << "\n  -L  useLexiconFile:          " << toString(useLexiconFile)
     << "\n  -l  lexiconFileName:         " << lexiconFileName
     << "\n  -T  useThesaurusFile:        " << toString(useThesaurusFile)
@@ -1687,7 +1687,7 @@ int main(int argc, char* argv[]) {
     << "\n"
     << "\n  -n  poemTarget:              " << poemTarget
     << "\n  -f  poemFailureMax:          " << poemFailureMax
-    << "\n  -P  multiKeyPercentage:      " << multiKeyPercentage
+    << "\n  -p  multiKeyPercentage:      " << multiKeyPercentage
     << "\n  -b  poemWordBegin:           " << poemWordBegin
     << "\n   e  usePoemWordEnd:          " << toString(usePoemWordEnd)
     << "\n  -e  poemWordEnd:             " << poemWordEnd
@@ -1724,13 +1724,13 @@ int main(int argc, char* argv[]) {
     }
 
     // Read all input files from a chosen directory.
-    // Save snowballing phrases to preProcessedFileName
-    loadInputFilesFromDirectory(directoryRawInput,preProcessedFileName);
+    // Save snowballing phrases to corpusFileName
+    loadInputFilesFromDirectory(directoryRawInput,corpusFileName);
   }
 
   // Error if file is not found.
-  if ( !openInputPreprocessed(preProcessedFileName) ) {
-    outputToConsole("Cannot open preprocessed file: "+preProcessedFileName, MSG_ERROR);
+  if ( !openInputCorpus(corpusFileName) ) {
+    outputToConsole("Cannot open corpus file: "+corpusFileName, MSG_ERROR);
     outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
     outputToConsole("Please create this file and then run the program.", MSG_ERROR);
     outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
@@ -1777,7 +1777,7 @@ int main(int argc, char* argv[]) {
   // Output if error.
   if (problemWithTheSnowballs) {
     ss.str("");
-    ss << "Input data is invalid. Perhaps you used the wrong preprocessed file?"
+    ss << "Input data is invalid. Perhaps you used the wrong corpus file?"
       "\nOr maybe there just wasn't enough useful data in the file."
       "\nThis file can be generated using the -r option."
       "\nYou can use -h or check the readme for more info."

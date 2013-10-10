@@ -3,9 +3,9 @@
 
 Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
-                [-P number] [-k number] [-b number] [-e number]
+                [-p number] [-k number] [-b number] [-e number]
                 [-x chars] [-X number] [-i (delim) | -s file]
-                [-p file] [-r directory] [l file | -L] [t file | -T]
+                [-c file] [-r directory] [l file | -L] [t file | -T]
 
 ======== Most common options
 
@@ -14,19 +14,21 @@ poems, these are the only options you will need.
 
 snowball
 This most basic command will run the program using all default settings. It will
-scan a file called "snowball-preprocessed.txt" in the working directory for
-snowballing phrases, and create 10,000 snowball poems which will be output to a
-file called "output-snowballPoems-1234567890.txt". The name of each poem file
-will be written to the standard output stream, and any errors will be written to
-the standard error stream.
+scan a file called "snowball-corpus.txt" in the executable directory for phrases
+that snowball in length, and create 10,000 snowball poems which will be output
+to a file called "output-snowballPoems-1234567890.txt". The name of the poem
+file will be written to the standard output stream, and any errors will be
+written to the standard error stream.
 
 snowball -r input-directory
-This will scan all files in the directory "input-directory" for raw English
+This will scan all files in the directory "./input-directory" for raw English
 text, and will output any phrases that snowball up in letter count to a file
-called "snowball-preprocessed.txt". It will ignore any word that does not appear
-in the file "snowball-lexicon.txt". Then it will create 10,000 poems as normal.
-Note that ALL files in the folder will be read, so do be careful that the
-directory only contains the text files that you want to process.
+called "snowball-corpus.txt" in the executable directory of the program (if the
+corpus file already existed, it will be overwritten). Any word that does not
+appear in the file "snowball-lexicon.txt" in the executable directory will be
+ignored. After the corpus file has been saved, 10,000 poems will be generated.
+Note that ALL files in the directory will be read, so do be careful that the
+folder only contains the text files that you want to process.
 
 snowball -s seed-phrases.txt
 Same as the usual snowballs, except that the file called "seed-phrases.txt" in
@@ -39,8 +41,8 @@ be saved in the form "output-snowballPoems-1234567890-[seed phrase].txt".
 -h --help
 Output a brief help message, then exit the program.
 
--V --version 
-Print program information (version, author, contact info) then exit the program. 
+-V --version
+Print program information (version, author, contact info) then exit the program.
 
 ======== Console output
 
@@ -70,10 +72,11 @@ list of all words that were not found in the lexicon file.
 ======== Snowball generation
 
 -n10000
-Specify how many snowballs to attempt to create. If zero is specified no
-snowballs will be generated. This may be useful when processing raw English text
-(although I do tend to run a few snowballs, just to test the input). The
-default, if no -n option is specified, is to create 10,000 snowballs.
+Specify how many snowballs to attempt to create. If zero is specified, no
+snowballs will be generated. This may be useful when you're only processing raw
+English text into a corpus file (although I do tend to run a few snowballs, just
+to test the input). The default, if no -n option is specified, is to create
+10,000 snowballs.
 
 -f100000
 This only comes into play when using a snowball "seed phrase" that is in the
@@ -84,7 +87,7 @@ the poem will be ignored. This determines how many failed poems to ignore before
 just giving up. The default, if no -f option is specified, is to ignore 100,000
 dodgy snowballs.
 
--P70
+-p70
 While generating the poem, word by word, the program can examine previously
 chosen words and use them in combination with the current word to select a more
 likely following word. For example if the poem currently being processed started
@@ -102,9 +105,8 @@ The default is "70", which seems to work pretty well.
 Specify a minimum word key size to use. The default is 1. Using the example
 above, if a key size of 2 was used, only the phrase "the lord above" would be
 considered, as "lord spoke" and "lord lucan" use only one word as their key.
-This only really works with a value of 2, but it accepts values up to 10. 
 Larger keys work much better with a large corpus though, and keys greater than
-2 rarely produce anything at all.
+2 rarely produce anything at all, but it accepts values up to 10.
 If a value of 0 is specified, the program will not use Markov chains at all.
 It will randomly select a 1 letter word, then a 2 letter word, then a 3 letter
 word, until it reaches the "ending word length", specified using the -e option.
@@ -120,7 +122,7 @@ begin at "last", even though it only has 4 letters.
 "Ending word length" - Reject poems whose last words are not at least 'n'
 letters long. This does nothing special during the creation of the poems, it
 only comes into play after the poem has been generated. It checks that the poem
-is long enough, and if it isn't the poem is ignored. You can uses the failure
+is long enough, and if it isn't the poem is discarded. You can uses the failure
 count -f option to specify how many failed poems to allow before throwing an
 error.
 
@@ -142,22 +144,22 @@ seed phrase, create a file full of snowballs based on that seed.
 
 -i [ delim ]
 Take seed phrases as input from standard input. For each seed phrase, create a
-file full of snowballs based on that seed. Phrases are seperated by the character
+file full of snowballs based on that seed. Phrases are separated by the character
 specified in the "delim" argument. This argument is optional; if a delimiter is
 not specified then a new line is used. If a delimiter longer than one character
 is specified, it will only use the first character in the string.
 Example 1:  echo "sordid chatter" | snowball -i
-Example 2:  echo "i am the|the only|the lord|glittered menacingly" | snowball -i"|"
+Example 2:  echo "i am the|the only|glittered menacingly" | snowball -i"|"
 Example 3:  snowball -i, < seed-phrases.csv
 
 ======== Processing raw input
 
--p snowball-preprocessed.txt
-Specify the preprocessed input file. This file contains a list of phrases that
-snowball upwards in letter count, with one phrase per line. This is used as
-input when generating snowballs, and is generated by the program as output when
-the -r option is specified. The default, if no -p option is specified, is to use
-a file called "snowball-preprocessed.txt" in the program executable directory.
+-c snowball-corpus.txt
+Specify the corpus input file. The file contains a list of phrases that snowball
+upwards by one in letter count, with one phrase per line. This is used as input
+when generating snowballs, and is generated by the program as output when the -r
+option is specified. The default, if no -c option is specified, is to use a file
+called "snowball-corpus.txt" in the program executable directory.
 
 -r ./input_directory
 Create from raw English text files. This will create a processed file from the

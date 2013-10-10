@@ -1,9 +1,9 @@
 
 Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
-                [-P number] [-k number] [-b number] [-e number]
+                [-p number] [-k number] [-b number] [-e number]
                 [-x chars] [-X number] [-i (delim) | -s file]
-                [-p file] [-r directory] [l file | -L] [t file | -T]
+                [-c file] [-r directory] [l file | -L] [t file | -T]
 
 Example: snowball -r input
          snowball -s seed-phrases.txt
@@ -21,10 +21,10 @@ Console output:
   -d        Debug. Write internal program vectors to separate files
 
 Snowball generation:
-                ( Arguments are all numeric integers )
+                ( Arguments should be numeric integers )
   -n10000       Specify how many snowballs to attempt to create
   -f100000      Failed poems to ignore before just giving up
-  -P70          Percentage chance to use longer word keys before shorter keys
+  -p70          Percentage chance to use longer word keys before shorter keys
   -k1           Specify a minimum word key size to use. Default is 1
   -b4           Begin poems at a word length other than 1
   -e8           Reject poems where last word is fewer than 'n' letters long
@@ -36,9 +36,9 @@ Snowball seed phrases:
   -i [ delim ]       Input seed phrases from stdin, 'delim' delimited
 
 Processing raw input:
-  -p snowball-preprocessed.txt   Specify the preprocessed input file
-  -r ./input_directory           Create from raw English text files
-  -l input-lexicon.txt           The file that contains list of valid words
-  -L                             Don't use a lexicon file to validate words
-  -t snowball-thesaurus.txt      The file that contains the words to switch
-  -T                             Don't use a thesaurus file to switch words
+  -c snowball-corpus.txt      The corpus file containing snowballing words
+  -r ./input_directory        Create from raw English text files
+  -l snowball-lexicon.txt     The file that contains list of valid words
+  -L                          Don't use a lexicon file to validate words
+  -t snowball-thesaurus.txt   The file that contains the words to switch
+  -T                          Don't use a thesaurus file to switch words
