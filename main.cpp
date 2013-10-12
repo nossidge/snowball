@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.43"
-#define PROGRAM_DATE    "2013/10/11"
+#define PROGRAM_VERSION "Version 1.44"
+#define PROGRAM_DATE    "2013/10/12"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +59,7 @@ bool processRawText = false;
 string directoryRawInput = "";
 
 // Should the temporary vectors be saved to disk as text files?
-bool debugVectorsSaveToFile = false;
+bool saveVectorsToFile = false;
 
 // The number of snowball poems to attempt to generate.
 unsigned int poemTarget = 10000;
@@ -102,7 +102,8 @@ bool useLexiconFile = true;
 string lexiconFileName = "snowball-lexicon.txt";
 
 // The corpus file that contains preprocessed snowball phrases.
-string corpusFileName = "snowball-corpus.txt";
+string corpusDefaultFile = "snowball-corpus.txt";
+vector<string> corpusFileName;
 
 // The file to use to interchange raw text input words.
 bool useThesaurusFile = true;
@@ -652,7 +653,7 @@ string loadInputFile(string const &fileName) {
                 validWord = false;
 
                 // Write to {wordsNotInLexicon}, if necessary.
-                if (debugVectorsSaveToFile) {
+                if (saveVectorsToFile) {
                   wordsNotInLexicon.push_back(word);
                 }
               }
@@ -717,7 +718,7 @@ string loadInputFile(string const &fileName) {
   }
 
   // Write {wordsNotInLexicon} to a file, if necessary.
-  if (useLexiconFile && debugVectorsSaveToFile) {
+  if (useLexiconFile && saveVectorsToFile) {
     sortAndDedupe(wordsNotInLexicon);
     vectorSaveToFile(wordsNotInLexicon,"output-wordsNotInLexicon.txt",true);
   }
@@ -795,8 +796,7 @@ bool openInputCorpus(string const &fileName) {
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
-bool loadInputFilesFromDirectory(string const &directoryPath,
-                                 string const &fileNameOut) {
+bool loadInputFilesFromDirectory(string const &directoryPath) {
   outputToConsole("loadInputFilesFromDirectory: " + directoryPath, MSG_DEBUG);
 
   // We will loop through the root directory to load each file.
@@ -906,7 +906,12 @@ bool loadInputFilesFromDirectory(string const &directoryPath,
     }
   }
   sortAndDedupe(inputCorpus);
-  vectorSaveToFile(inputCorpus,fileNameOut,false);
+
+  // Save {inputCorpus} to each of the corpus files specified.
+  for (vector<string>::iterator iter =corpusFileName.begin();
+                                iter!=corpusFileName.end(); ++iter) {
+    vectorSaveToFile(inputCorpus,*iter,false);
+  }
 
   return true;
 }
@@ -1403,7 +1408,7 @@ int main(int argc, char* argv[]) {
   // Default location for the files is the *executable* directory.
   //   (Not the working directory)
   lexiconFileName   = programPath + PathSeparator + lexiconFileName;
-  corpusFileName    = programPath + PathSeparator + corpusFileName;
+  corpusDefaultFile = programPath + PathSeparator + corpusDefaultFile;
   thesaurusFileName = programPath + PathSeparator + thesaurusFileName;
 
 
@@ -1494,7 +1499,7 @@ int main(int argc, char* argv[]) {
       // Specify the corpus input file.
       case 'c': // -c snowball-corpus.txt
         opt_c = true;
-        corpusFileName = optarg;
+        corpusFileName.push_back(optarg);
         break;
 
       // Specify the thesaurus file.
@@ -1607,7 +1612,7 @@ int main(int argc, char* argv[]) {
   outputIsVerbose = opt_v;
 
   // Write contents of internal program vectors to separate files.
-  debugVectorsSaveToFile = opt_d;
+  saveVectorsToFile = opt_d;
 
   // Don't use a lexicon file.
   useLexiconFile = !opt_L;
@@ -1639,14 +1644,26 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Specify the corpus input file.
-  // Check if "corpusFileName" is an existing file.
-  // (Don't do this if we're creating a new one with -r)
+  // If there is no corpus specified, then use the default.
+  if (corpusFileName.size() == 0) {
+    corpusFileName.push_back(corpusDefaultFile);
+  }
+
+  // Check if the specified corpus file(s) actually exist.
+  // (Don't do this if we're creating from raw text with -r)
   if (opt_c && !opt_r) {
-    ifstream inputFile(corpusFileName.c_str());
-    if ( !inputFile.good() ) {
-      outputToConsole("Specified corpus file not found: " + corpusFileName, MSG_ERROR);
-      return EXIT_FAILURE;
+    for (vector<string>::iterator iter =corpusFileName.begin();
+                                  iter!=corpusFileName.end(); ++iter) {
+      string fileName = *iter;
+      ifstream checkFile(fileName.c_str());
+      if ( !checkFile.good() ) {
+        outputToConsole("Cannot open corpus file: "+fileName, MSG_ERROR);
+        outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
+        outputToConsole("Please create this file and then run the program.", MSG_ERROR);
+        outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
+        outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
+        return EXIT_FAILURE;
+      }
     }
   }
 
@@ -1659,9 +1676,19 @@ int main(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
     processRawText = true;
+
+  // Don't need to use these if we aren't reading from raw.
+  } else {
+    useLexiconFile   = false;
+    useThesaurusFile = false;
   }
 
-  // Debug - Output the state of the program as specified by the input options.
+  // Clear these if not needed so they don't show in the verbose output.
+  if (!processRawText)   directoryRawInput = "";
+  if (!useLexiconFile)   lexiconFileName   = "";
+  if (!useThesaurusFile) thesaurusFileName = "";
+
+  // Verbose - Output the state of the program as specified by the input options.
   // Lines that begin with a hyphen are directly controlled by input options,
   //   lines that don't are inferred from the option.
   ss.str("");
@@ -1669,31 +1696,33 @@ int main(int argc, char* argv[]) {
     << "\n  programPath:  " << programPath
     << "\n  programFile:  " << programFile
     << "\n"
-    << "\n  -v  outputIsVerbose:         " << toString(outputIsVerbose)
-    << "\n  -q  outputIsQuiet:           " << toString(outputIsQuiet)
-    << "\n  -o  outputPoemsOnly:         " << toString(outputPoemsOnly)
-    << "\n  -d  debugVectorsSaveToFile:  " << toString(debugVectorsSaveToFile)
+    << "\n  -v  outputIsVerbose:      " << toString(outputIsVerbose)
+    << "\n  -q  outputIsQuiet:        " << toString(outputIsQuiet)
+    << "\n  -o  outputPoemsOnly:      " << toString(outputPoemsOnly)
+    << "\n  -d  saveVectorsToFile:    " << toString(saveVectorsToFile)
     << "\n"
-    << "\n   r  processRawText:          " << toString(processRawText)
-    << "\n  -r  directoryRawInput:       " << directoryRawInput
+    << "\n   r  processRawText:       " << toString(processRawText)
+    << "\n  -r  directoryRawInput:    " << directoryRawInput
+    << "\n  -L  useLexiconFile:       " << toString(useLexiconFile)
+    << "\n  -l  lexiconFileName:      " << lexiconFileName
+    << "\n  -T  useThesaurusFile:     " << toString(useThesaurusFile)
+    << "\n  -t  thesaurusFileName:    " << thesaurusFileName
     << "\n"
-    << "\n  -c  corpusFileName:          " << corpusFileName
-    << "\n  -L  useLexiconFile:          " << toString(useLexiconFile)
-    << "\n  -l  lexiconFileName:         " << lexiconFileName
-    << "\n  -T  useThesaurusFile:        " << toString(useThesaurusFile)
-    << "\n  -t  thesaurusFileName:       " << thesaurusFileName
-    << "\n  -i  seedPhrases:             " << toString(seedPhrases," - ")
-    << "\n  -s  seedPhrasesFileName:     " << seedPhrasesFileName
+    << "\n  -c  corpusFileName:       " << toString(corpusFileName,
+       "\n                            ")
+    << "\n  -s  seedPhrasesFileName:  " << seedPhrasesFileName
+    << "\n  -i  seedPhrases:          " << toString(seedPhrases,
+       "\n                            ")
     << "\n"
-    << "\n  -n  poemTarget:              " << poemTarget
-    << "\n  -f  poemFailureMax:          " << poemFailureMax
-    << "\n  -p  multiKeyPercentage:      " << multiKeyPercentage
-    << "\n  -b  poemWordBegin:           " << poemWordBegin
-    << "\n   e  usePoemWordEnd:          " << toString(usePoemWordEnd)
-    << "\n  -e  poemWordEnd:             " << poemWordEnd
-    << "\n   x  excludeAnyChars:         " << toString(excludeAnyChars)
-    << "\n  -x  excludedChars:           " << excludedChars
-    << "\n  -X  exCMinWordLength:        " << exCMinWordLength
+    << "\n  -n  poemTarget:           " << poemTarget
+    << "\n  -f  poemFailureMax:       " << poemFailureMax
+    << "\n  -p  multiKeyPercentage:   " << multiKeyPercentage
+    << "\n  -b  poemWordBegin:        " << poemWordBegin
+    << "\n   e  usePoemWordEnd:       " << toString(usePoemWordEnd)
+    << "\n  -e  poemWordEnd:          " << poemWordEnd
+    << "\n   x  excludeAnyChars:      " << toString(excludeAnyChars)
+    << "\n  -x  excludedChars:        " << excludedChars
+    << "\n  -X  exCMinWordLength:     " << exCMinWordLength
     << "\n"
   ;
   outputToConsole(ss.str(), MSG_DEBUG);
@@ -1724,26 +1753,31 @@ int main(int argc, char* argv[]) {
     }
 
     // Read all input files from a chosen directory.
-    // Save snowballing phrases to corpusFileName
-    loadInputFilesFromDirectory(directoryRawInput,corpusFileName);
+    // Save snowballing phrases to corpusDefaultFile
+    loadInputFilesFromDirectory(directoryRawInput);
   }
 
+  // Load each corpus file to the global vectors.
   // Error if file is not found.
-  if ( !openInputCorpus(corpusFileName) ) {
-    outputToConsole("Cannot open corpus file: "+corpusFileName, MSG_ERROR);
-    outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
-    outputToConsole("Please create this file and then run the program.", MSG_ERROR);
-    outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
-    outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
-    return EXIT_FAILURE;
+  for (vector<string>::iterator iter =corpusFileName.begin();
+                                iter!=corpusFileName.end(); ++iter) {
+    string corpusString = *iter;
+    if ( !openInputCorpus(corpusString) ) {
+      outputToConsole("Cannot open corpus file: "+corpusString, MSG_ERROR);
+      outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
+      outputToConsole("Please create this file and then run the program.", MSG_ERROR);
+      outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
+      outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
+      return EXIT_FAILURE;
+    }
   }
 
   // Save the vectors as text files, if necessary
-  if ( debugVectorsSaveToFile ) {
+  if ( saveVectorsToFile ) {
     mapSaveToFileKeyHeader(wordsForwards,"output-wordsForwards-keyHeader.txt");
-    mapSaveToFile(wordsForwards,"output-wordsForwards.txt");
+    mapSaveToFile         (wordsForwards,"output-wordsForwards.txt");
     mapSaveToFileKeyHeader(wordsBackwards,"output-wordsBackwards-keyHeader.txt");
-    mapSaveToFile(wordsBackwards,"output-wordsBackwards.txt");
+    mapSaveToFile         (wordsBackwards,"output-wordsBackwards.txt");
     mapSaveToFileKeyHeader(wordsWithLength,"output-wordsWithLength.txt");
     saveToFileDeadBranches("output-wordsDeadBranches.txt");
   }
