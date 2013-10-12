@@ -103,7 +103,7 @@ string lexiconFileName = "snowball-lexicon.txt";
 
 // The corpus file that contains preprocessed snowball phrases.
 string corpusDefaultFile = "snowball-corpus.txt";
-vector<string> corpusFileName;
+vector< pair<string,int> > corpusFiles;
 
 // The file to use to interchange raw text input words.
 bool useThesaurusFile = true;
@@ -240,10 +240,21 @@ void outputToConsoleHelp(MsgType const &type) {
 // User-friendly console output.
 string toString(vector<string> &inputVector, string delimiter) {
   string returnString = "";
-  for (vector<string>::iterator iter = inputVector.begin();
-                                iter!=inputVector.end(); ++iter) {
+  for (vector<string>::iterator
+       iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
     returnString = returnString + *iter + delimiter;
   }
+  returnString.erase(returnString.find_last_not_of(delimiter)+1);
+  return returnString;
+}
+string toString(vector< pair<string,int> > &inputVector, string delimiter) {
+  ostringstream ss;
+  for (vector< pair<string,int> >::iterator
+       iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    pair<string,int> deRef = *iter;
+    ss << deRef.second << " " << deRef.first << delimiter;
+  }
+  string returnString = ss.str();
   returnString.erase(returnString.find_last_not_of(delimiter)+1);
   return returnString;
 }
@@ -908,9 +919,10 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
   sortAndDedupe(inputCorpus);
 
   // Save {inputCorpus} to each of the corpus files specified.
-  for (vector<string>::iterator iter =corpusFileName.begin();
-                                iter!=corpusFileName.end(); ++iter) {
-    vectorSaveToFile(inputCorpus,*iter,false);
+  for (vector< pair<string,int> >::iterator
+       iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
+    pair<string,int> deRef = *iter;
+    vectorSaveToFile(inputCorpus,deRef.first,false);
   }
 
   return true;
@@ -1411,6 +1423,11 @@ int main(int argc, char* argv[]) {
   corpusDefaultFile = programPath + PathSeparator + corpusDefaultFile;
   thesaurusFileName = programPath + PathSeparator + thesaurusFileName;
 
+  // Temporary vectors for corpus files and weights.
+  // After we read argv, these will need to be paired together:
+  //    vector< pair<string,int> > corpusFiles;
+  vector<string> tempCorpusFile;
+  vector<unsigned int> tempCorpusWeight;
 
   // String stream for use with output messages.
   ostringstream ss;
@@ -1428,7 +1445,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:p:k:b:e:x:X:s:i::c:t:r:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdn:f:p:k:b:e:x:X:s:i::c:C:t:r:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1499,7 +1516,12 @@ int main(int argc, char* argv[]) {
       // Specify the corpus input file.
       case 'c': // -c snowball-corpus.txt
         opt_c = true;
-        corpusFileName.push_back(optarg);
+        tempCorpusFile.push_back(optarg);
+        break;
+
+      // Specify the weight of each corpus input file.
+      case 'C':
+        tempCorpusWeight.push_back( (unsigned int)abs(atoi(optarg)) );
         break;
 
       // Specify the thesaurus file.
@@ -1581,7 +1603,7 @@ int main(int argc, char* argv[]) {
     return EXIT_SUCCESS;
   }
 
-  // -V  =  Print version of program, then exit the program
+  // -V  =  Print program version, then exit the program
   if (opt_V) {
     outputToConsoleVersion(MSG_STANDARD);
     outputToConsole("", MSG_STANDARD);
@@ -1644,17 +1666,38 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // If there is no corpus specified, then use the default.
-  if (corpusFileName.size() == 0) {
-    corpusFileName.push_back(corpusDefaultFile);
+  // Match the corpus files and weights.
+  //   vector< pair<string,int> > corpusFiles;
+  if (tempCorpusFile.size() != 0) {
+    unsigned int countFile   = tempCorpusFile.size();
+    unsigned int countWeight = tempCorpusWeight.size();
+
+    // If there are more weights than files, ignore to the extra weights.
+    // If there are more files than weights, assign 1 to the extra files.
+    if (countWeight < countFile) {
+      for (unsigned int i = countWeight; i < countFile; i++){
+        tempCorpusWeight.push_back(1);
+      }
+    }
+
+    // Add to the global vector.
+    for (unsigned int i = 0; i < countFile; i++){
+      corpusFiles.push_back(make_pair(tempCorpusFile[i],tempCorpusWeight[i]));
+    }
+
+  // If there is no corpus specified, use the default.
+  } else {
+    corpusFiles.push_back(make_pair(corpusDefaultFile,1));
   }
+
 
   // Check if the specified corpus file(s) actually exist.
   // (Don't do this if we're creating from raw text with -r)
   if (opt_c && !opt_r) {
-    for (vector<string>::iterator iter =corpusFileName.begin();
-                                  iter!=corpusFileName.end(); ++iter) {
-      string fileName = *iter;
+    for (vector< pair<string,int> >::iterator
+         iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
+      pair<string,int> deRef = *iter;
+      string fileName = deRef.first;
       ifstream checkFile(fileName.c_str());
       if ( !checkFile.good() ) {
         outputToConsole("Cannot open corpus file: "+fileName, MSG_ERROR);
@@ -1708,7 +1751,7 @@ int main(int argc, char* argv[]) {
     << "\n  -T  useThesaurusFile:     " << toString(useThesaurusFile)
     << "\n  -t  thesaurusFileName:    " << thesaurusFileName
     << "\n"
-    << "\n  -c  corpusFileName:       " << toString(corpusFileName,
+    << "\n  -c  corpusFiles:          " << toString(corpusFiles,
        "\n                            ")
     << "\n  -s  seedPhrasesFileName:  " << seedPhrasesFileName
     << "\n  -i  seedPhrases:          " << toString(seedPhrases,
@@ -1759,9 +1802,10 @@ int main(int argc, char* argv[]) {
 
   // Load each corpus file to the global vectors.
   // Error if file is not found.
-  for (vector<string>::iterator iter =corpusFileName.begin();
-                                iter!=corpusFileName.end(); ++iter) {
-    string corpusString = *iter;
+  for (vector< pair<string,int> >::iterator
+       iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
+    pair<string,int> deRef = *iter;
+    string corpusString = deRef.first;
     if ( !openInputCorpus(corpusString) ) {
       outputToConsole("Cannot open corpus file: "+corpusString, MSG_ERROR);
       outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
