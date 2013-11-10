@@ -267,25 +267,59 @@ zombi zombie
 hie hurry
 
 #Archaic_Poetic
-amongst among
-ere before
-hark listen
-hath has
-hither here
-thee thou you
-thy your
-wherefore why
-whilst while
-wouldst would
+among amongst amid amidst
+before ere
+has hath
+here hither
+listen hark
+rejoice rejoiceth
+why wherefore
+while whilst
+would wouldst
+you thee thou
+your thy
+
+#Diacritics
+cafe café
+cafes cafés
+cliche cliché
+cliched clichéd
+cliches clichés
+seance séance
+seances séances
 
 #Synonyms
 chalice goblet
 completely utterly totally absolutely
 maybe perhaps
+poo poop
+rarely seldom
 
 #Spelling_Errors
 abhorrent abhorent
 abhorr abhor
 abhorring abhoring
 ability abiliy abillity abiltity abiltiy abilty
+cantankerously cantakerously
+challenger challeger
+consensus concensus
+desperately desparately
+eavesdrop evesdrop avesdrop aevesdrop
+embarrassing embasrassing
+everybody evebody eveybody
+everyone everone eveyrone
+everytime eveytime
+everything everytng
 international internatinional
+jewelry jewelery
+maintenance maintainence
+noticeably noticably
+originality orginality
+oxygen oxigen
+really reallv
+remembrance rememberance
+something someting
+statement statment
+thanks thanx
+their thier
+way waay waaay

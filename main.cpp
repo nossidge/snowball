@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.44"
-#define PROGRAM_DATE    "2013/10/12"
+#define PROGRAM_VERSION "Version 1.5"
+#define PROGRAM_DATE    "2013/11/10"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +103,8 @@ string lexiconFileName = "snowball-lexicon.txt";
 
 // The corpus file that contains preprocessed snowball phrases.
 string corpusDefaultFile = "snowball-corpus.txt";
-vector< pair<string,int> > corpusFiles;
+vector< pair<string, unsigned int> > corpusFiles;
+bool corpusWeightDiff = false;
 
 // The file to use to interchange raw text input words.
 bool useThesaurusFile = true;
@@ -114,31 +115,36 @@ string thesaurusFileName = "snowball-thesaurus.txt";
 // Vector for the lexicon. A simple word list.
 vector<string> wordsLexicon;
 
-/*  [keyWord],    [wordsThesaurus]
-    {honor},      {honour}
-    {honour},     {honor}
-    {completely}, {utterly, totally}
-    {utterly},    {totally, completely}
-    {totally},    {completely, utterly}    */
-map<string,vector<string> > wordsThesaurus;
+/*  [wordKey]     [wordsVector]
+    {honor}       {honour}
+    {honour}      {honor}
+    {completely}  {utterly, totally}
+    {utterly}     {totally, completely}
+    {totally}     {completely, utterly}    */
+map<string, vector<string> > wordsThesaurus;
 
-/*  [wordLength], [wordsVector]
-    {1},          {a, i, o}
-    {2},          {it, am, to, do, we}
-    {3},          {who, are, you, may}     */
-map<int,vector<string> > wordsWithLength;
+/*  [wordLength]  [wordsVector]
+    {1}           {a, i, o}
+    {2}           {am, do, it, to, we}
+    {3}           {are, may, who, you}     */
+map<unsigned int, vector<string> > wordsWithLength;
 
-/*  [keyWord], [wordsForwards]
-    {it},      {can, was, had}
-    {am},      {the, our}
-    {to},      {you, ask, the, put, say}
-    {do|you},  {know, care, look}          */
-map<string,vector<string> > wordsForwards;
+/*  [wordKey]  [corpus]  [wordVector]
+    {it}       {0}       {can, had, was}
+    {it}       {1}       {did, had}
+    {am}       {0}       {our, the}
+    {am}       {1}       {the}
+    {to}       {0}       {ask, put, say, the, you}
+    {we}       {1}       {are, did, can}
+    {do|you}   {0}       {care, know, look}      */
+map<string, map<unsigned int, vector<string> > > wordsForwards;
 
-/*  [keyWord], [wordsBackwards]
-    {can},     {it, we}
-    {the},     {is, do}                    */
-map<string,vector<string> > wordsBackwards;
+/*  [wordKey]  [corpus]  [wordVector]
+    {can}      {0}       {it}
+    {can}      {1}       {we}
+    {the}      {0}       {am, to}
+    {the}      {1}       {am}            */
+map<string, map<unsigned int, vector<string> > > wordsBackwards;
 
 /// ////////////////////////////////////////////////////////////////////////////
 
@@ -185,7 +191,8 @@ void outputToConsoleUsage(MsgType const &type) {
     "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
     "\n                [-p number] [-k number] [-b number] [-e number]"
     "\n                [-x chars] [-X number] [-i (delim) | -s file]"
-    "\n                [-c file] [-r directory] [l file | -L] [t file | -T]"
+    "\n                [-c file (-C number)]"
+    "\n                [-r directory] [l file | -L] [t file | -T]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -195,9 +202,11 @@ void outputToConsoleHelp(MsgType const &type) {
   outputToConsoleUsage(type);
   ostringstream ss;
   ss <<
-      "Example: snowball -r input"
+      "Example: snowball -r directory-name"
     "\n         snowball -s seed-phrases.txt"
     "\n         echo \"i am the,the only,the main,disqualified\" | snowball -i,"
+    "\n         snowball -v -n100 -c a.txt -C3 -c b.txt -C2"
+    "\n         snowball -o -k2 -p100 -e8 > sbpoems-longkeys.txt"
     "\n"
     "\nProgram information:"
     "\n  -h        Output help instructions"
@@ -227,6 +236,7 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n"
     "\nProcessing raw input:"
     "\n  -c snowball-corpus.txt      The corpus file containing snowballing words"
+    "\n  -C [ number ]               The weight of the corresponding corpus file"
     "\n  -r ./input_directory        Create from raw English text files"
     "\n  -l snowball-lexicon.txt     The file that contains list of valid words"
     "\n  -L                          Don't use a lexicon file to validate words"
@@ -247,11 +257,11 @@ string toString(vector<string> &inputVector, string delimiter) {
   returnString.erase(returnString.find_last_not_of(delimiter)+1);
   return returnString;
 }
-string toString(vector< pair<string,int> > &inputVector, string delimiter) {
+string toString(vector< pair<string,unsigned int> > &inputVector, string delimiter) {
   ostringstream ss;
-  for (vector< pair<string,int> >::iterator
+  for (vector< pair<string,unsigned int> >::iterator
        iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
-    pair<string,int> deRef = *iter;
+    pair<string,unsigned int> deRef = *iter;
     ss << deRef.second << " " << deRef.first << delimiter;
   }
   string returnString = ss.str();
@@ -283,12 +293,33 @@ void sortAndDedupe(vector<string> &inputVector) {
   vector<string>::iterator iter = std::unique(inputVector.begin(), inputVector.end());
   inputVector.resize( std::distance(inputVector.begin(),iter) );
 }
-void sortAndDedupe(map<int, vector<string> > &inputVector) {
-  for(map<int, vector<string> >::iterator iter = inputVector.begin();
-                                          iter != inputVector.end(); ++iter) {
+void sortAndDedupe(map<unsigned int, vector<string> > &inputVector) {
+  for(map<unsigned int, vector<string> >::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
     sortAndDedupe(iter->second);
   }
 }
+void sortAndDedupe(map<string, vector<string> > &inputVector) {
+  for(map<string, vector<string> >::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    sortAndDedupe(iter->second);
+  }
+}
+void sortAndDedupe(map<string, map<unsigned int, vector<string> > > &inputVector) {
+  for(map<string, map<unsigned int, vector<string> > >::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    sortAndDedupe(iter->second);
+  }
+}
+/// ////////////////////////////////////////////////////////////////////////////
+// Struct to sort a pair vector by its second values, descending.
+// From - http://stackoverflow.com/a/279878/139299
+struct sort2ndInPairDesc {
+  bool operator()(const pair<unsigned int,unsigned int> &left,
+                  const pair<unsigned int,unsigned int> &right) {
+    return left.second > right.second;
+  }
+};
 /// ////////////////////////////////////////////////////////////////////////////
 void vectorSaveToFile(vector< vector<string> > const &inputVector,
                       string const &fileName,
@@ -352,6 +383,35 @@ void mapSaveToFile(map<string, vector<string> > &inputVector,
   outputFile.close();
 }
 
+void mapSaveToFile(map<string, map<unsigned int, vector<string> > > &inputVector,
+                   string const &fileName) {
+  outputToConsole("mapSaveToFile: " + fileName, MSG_DEBUG);
+
+  ofstream outputFile;
+  outputFile.open(fileName.c_str());
+
+  for(map<string, map<unsigned int, vector<string> > >::iterator
+        iterKey = inputVector.begin();
+        iterKey!= inputVector.end();
+        ++iterKey) {
+
+    for(map<unsigned int, vector<string> >::iterator
+          iterFile = iterKey->second.begin();
+          iterFile!= iterKey->second.end();
+          ++iterFile) {
+
+      for(vector<string>::iterator
+            iterWord = iterFile->second.begin();
+            iterWord!= iterFile->second.end();
+            ++iterWord) {
+
+        outputFile << iterKey->first << " - " << iterFile->first << " - " << *iterWord << endl;
+      }
+    }
+  }
+  outputFile.close();
+}
+
 // Saves each value on a separate line, with a header row for the key, e.g.
 // "Key:    i"
 // "Values: am"
@@ -391,16 +451,15 @@ void mapSaveToFileKeyHeader(map<string, vector<string> > &inputVector,
 // "Values: am"
 // "        an"
 // "        at"
-void mapSaveToFileKeyHeader(map<int, vector<string> > &inputVector,
+void mapSaveToFileKeyHeader(map<unsigned int, vector<string> > &inputVector,
                             string const &fileName) {
   outputToConsole("mapSaveToFileKeyHeader: " + fileName, MSG_DEBUG);
 
   // Print the map to a file
   ofstream outputFile;
   outputFile.open(fileName.c_str());
-  for(map<int,vector<string> >::iterator iter = inputVector.begin();
-                                         iter!= inputVector.end();
-                                         iter++) {
+  for(map<unsigned int,vector<string> >::iterator
+      iter = inputVector.begin(); iter!= inputVector.end(); iter++) {
     outputFile << "Key:    " << iter->first << endl;
     outputFile << "Values: ";
     vector<string> wordList = iter->second;
@@ -417,9 +476,9 @@ void saveToFileDeadBranches(string const &fileName) {
   outputToConsole("saveToFileDeadBranches: " + fileName, MSG_DEBUG);
 
   vector<string> deadBranches;
-  for(map<string,vector<string> >::iterator iter = wordsBackwards.begin();
-                                            iter != wordsBackwards.end();
-                                            ++iter) {
+  for(map<string, map<unsigned int, vector<string> > >::iterator
+      iter = wordsBackwards.begin();
+      iter != wordsBackwards.end(); ++iter) {
     string theKey = iter->first;
 
     // Make sure it doesn't contain any pipe chars.
@@ -517,25 +576,26 @@ bool importThesaurus(string const &fileName) {
 //
 // inputString: "The colors we view whilst dreaming"
 //
-// Output:
-// The colors we view while dreaming
-// The colors we view whilst dreaming
-// The colours we view while dreaming
-// The colours we view whilst dreaming
+// Ideal Output (substitute all permutations):
+//   The colors we view whilst dreaming
+//   The colours we view whilst dreaming
+//   The colors we view while dreaming
+//   The colours we view while dreaming
+//
+// Actual Output (only substitute the original phrase):
+//   The colors we view whilst dreaming
+//   The colours we view whilst dreaming
+//   The colors we view while dreaming
+//
+// It takes too much memory to match all the permutations.
+//   This reduced functionality will do for now.
 //
 vector<string> lineExpandedFromThesaurus(string const &inputString) {
   vector<string> phrases;
+  phrases.push_back(inputString);
 
-  // Just return inputString if we don't need to use the thesaurus.
-  if (!useThesaurusFile) {
-    phrases.push_back(inputString);
-
-  } else {
-
-    vector<string> phrasesOrig;
-
-    // We loop through this later, so need to have one empty string element.
-    phrases.push_back("");
+  // Don't do a thing if we don't need to use the thesaurus.
+  if (useThesaurusFile) {
 
     // Split into separate words.
     vector<string> words = split(inputString,' ');
@@ -545,29 +605,25 @@ vector<string> lineExpandedFromThesaurus(string const &inputString) {
 
       // See if the word is a key in the thesaurus map.
       unsigned int countThesaurusWords = wordsThesaurus[words[iWord]].size();
-      bool found = ( countThesaurusWords != 0 );
+      if (countThesaurusWords != 0) {
 
-      // If found, backup the current {phrases} vector.
-      // We'll add to {phrases}, but read from {phrasesOrig}.
-      if (found) phrasesOrig = phrases;
+        // String vectors containing each half of the phrases.
+        vector<string>::const_iterator first1 = words.begin();
+        vector<string>::const_iterator last1 = words.begin() + iWord;
+        vector<string> phrase1(first1, last1);
+        vector<string>::const_iterator first2 = last1 + 1;
+        vector<string>::const_iterator last2 = words.end();
+        vector<string> phrase2(first2, last2);
+        string strPhrase1 = toString(phrase1," ");
+        string strPhrase2 = toString(phrase2," ");
 
-      // Even if not found, add the word to each phrase string.
-      // Loop through each {phrase} and append to the end.
-      for (unsigned int iPhrase=0; iPhrase<phrases.size(); iPhrase++) {
-        phrases[iPhrase].append(words[iWord]+' ');
-      }
-
-      // If it is found, add ALL words that match the thesaurus key.
-      if (found) {
-
-        // For each phrase in {phrasesOrig}
-        for (unsigned int iOrig=0; iOrig<phrasesOrig.size(); iOrig++) {
-          string strPhrase = phrasesOrig[iOrig];
-
-          // Loop through {phrasesOrig} and append to {phrases}.
-          for (unsigned int i=0; i<countThesaurusWords; i++) {
-            phrases.push_back(strPhrase+wordsThesaurus[words[iWord]][i]+' ');
-          }
+        // Loop through the thesaurus words, substitute them in the oringinal
+        //   phrase, and append to {phrases}.
+        for (unsigned int i=0; i<countThesaurusWords; i++) {
+          string newThesaurusWord = wordsThesaurus[words[iWord]][i];
+          string newPhrase = strPhrase1 + " " + newThesaurusWord + " "
+                           + strPhrase2;
+          phrases.push_back(newPhrase);
         }
       }
     }
@@ -612,7 +668,7 @@ string loadInputFile(string const &fileName) {
       // Split line up into 5000 character strings. This might mean that we
       //   miss some possible snowballing phrases at the break of the lines,
       //   but it also means that we don't run out of memory.
-      unsigned int const maxLen = 5000;
+      unsigned int const maxLen = 5000000;
       unsigned int lineSize = line.size();
       vector<string> lineVectorOrig;
       for (unsigned int i = 0; i <= (lineSize / maxLen); i++) {
@@ -626,7 +682,6 @@ string loadInputFile(string const &fileName) {
                                     ++iterLineOrig) {
 
         // Use the thesaurus to expand to all possible variants.
-        //vector<string> lineVector = lineExpandedFromThesaurus(line);
         vector<string> lineVector = lineExpandedFromThesaurus(*iterLineOrig);
 
         // For each line (may be more than one because of the thesaurus)
@@ -711,17 +766,17 @@ string loadInputFile(string const &fileName) {
             }
             previousWord = word;
           }
-        }
 
-        // If there's anything in {snowballBuffer}, copy to {rawSnowball}
-        if ( snowballBuffer.size() > 1 ) {
-          stringstream ss;
-          for (vector<string>::iterator iter = snowballBuffer.begin();
-                                        iter!= snowballBuffer.end(); ++iter)
-              ss << *iter << " ";
-          std::string s = ss.str();
-          s.erase(s.find_last_not_of(" ")+1);
-          rawSnowball.push_back(s);
+          // If there's anything in {snowballBuffer}, copy to {rawSnowball}
+          if ( snowballBuffer.size() > 1 ) {
+            stringstream ss;
+            for (vector<string>::iterator iter = snowballBuffer.begin();
+                                          iter!= snowballBuffer.end(); ++iter)
+                ss << *iter << " ";
+            std::string s = ss.str();
+            s.erase(s.find_last_not_of(" ")+1);
+            rawSnowball.push_back(s);
+          }
         }
       }
     }
@@ -731,7 +786,7 @@ string loadInputFile(string const &fileName) {
   // Write {wordsNotInLexicon} to a file, if necessary.
   if (useLexiconFile && saveVectorsToFile) {
     sortAndDedupe(wordsNotInLexicon);
-    vectorSaveToFile(wordsNotInLexicon,"output-wordsNotInLexicon.txt",true);
+    vectorSaveToFile(wordsNotInLexicon,"output-wordsNotInLexicon.txt",true,false);
   }
 
   // Sort the raw snowball vector.
@@ -751,12 +806,15 @@ string loadInputFile(string const &fileName) {
 /// ////////////////////////////////////////////////////////////////////////////
 // Import a preprocessed snowballing corpus file to the global vectors:
 //   {wordsForwards}  {wordsBackwards}  {wordsWithLength}
-bool openInputCorpus(string const &fileName) {
-  outputToConsole("openInputCorpus: " + fileName, MSG_DEBUG);
+bool openInputCorpus(string const &fileName,
+                     unsigned int &fileID,
+                     unsigned int &fileWeight) {
+  stringstream ss;
+  ss << "openInputCorpus - ID: " << fileID << " - Weight: " << fileWeight
+     << " - fileName: " << fileName;
+  outputToConsole(ss.str(), MSG_DEBUG);
 
-  vector<string> inputCorpus;
-
-  // Loop through the raw input file.
+  // Loop through the lines in the input file.
   ifstream inputFile;
   inputFile.open(fileName.c_str());
 
@@ -774,7 +832,7 @@ bool openInputCorpus(string const &fileName) {
         vector<string> wordVector;
         wordVector = split(line,' ');
 
-        // Fill wordsForwards and wordsBackwards
+        // Fill {wordsForwards} and {wordsBackwards}
         string keyForwards, keyBackwards;
         for (unsigned int i = 0; i < wordVector.size(); i++) {
           if (i != wordVector.size()-1) {
@@ -790,8 +848,9 @@ bool openInputCorpus(string const &fileName) {
         string valueForwards = wordVector.back();
         string valueBackwards = wordVector.front();
 
-        wordsForwards[keyForwards].push_back(valueForwards);
-        wordsBackwards[keyBackwards].push_back(valueBackwards);
+        // Add to forwards and backwards
+        wordsForwards[keyForwards][fileID].push_back(valueForwards);
+        wordsBackwards[keyBackwards][fileID].push_back(valueBackwards);
 
         // Also, populate {wordsWithLength} with only the first word.
         int wordLength = wordVector[0].length();
@@ -800,9 +859,6 @@ bool openInputCorpus(string const &fileName) {
     }
   }
   inputFile.close();
-
-  // Sort and dedupe the wordsWithLength map.
-  sortAndDedupe(wordsWithLength);
 
   return true;
 }
@@ -845,7 +901,6 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
     allInputFiles.push_back(outputFileName);
   }
 
-
   // Vector of all lines in all files.
   vector<string> allInputLines;
 
@@ -870,7 +925,7 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
 
     // Delete the file when finished.
     if( remove( currentFileName.c_str() ) != 0 ) {
-      outputToConsole("Error deleting temporary file: " + currentFileName, MSG_ERROR);
+      outputToConsole("Error deleting temporary file: "+currentFileName, MSG_ERROR);
       return false;
     }
   }
@@ -919,9 +974,9 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
   sortAndDedupe(inputCorpus);
 
   // Save {inputCorpus} to each of the corpus files specified.
-  for (vector< pair<string,int> >::iterator
+  for (vector< pair<string,unsigned int> >::iterator
        iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
-    pair<string,int> deRef = *iter;
+    pair<string,unsigned int> deRef = *iter;
     vectorSaveToFile(inputCorpus,deRef.first,false);
   }
 
@@ -964,22 +1019,92 @@ vector<string> validWords(vector<string> &inputVector) {
     }
   }
 }
+// Does a given keyWord map to any other values in any corpus?
+bool hasValidWords(map<string, map<unsigned int, vector<string> > > &inputMap,
+                   string keyWord) {
+  if (keyWord == "") return false;
+
+  vector<string> vec;
+  if (corpusWeightDiff) {
+    for (unsigned int i = 0; i < corpusFiles.size(); i++) {
+      vec = validWords(inputMap[keyWord][i]);
+      if (vec.size() != 0) return true;
+    }
+  } else {
+    vec = validWords(inputMap[keyWord][0]);
+    if (vec.size() != 0) return true;
+  }
+  return false;
+}
 /// ////////////////////////////////////////////////////////////////////////////
 // Return a random element of a vector.
 // Ensure it is valid using the (validWords) function.
 // Return "" if no valid element.
 string randomValidElement(vector<string> &inputVector) {
   string returnString;
-
   vector<string> valid = validWords(inputVector);
   if (valid.size() == 0) {
     returnString = "";
-    outputToConsole("No valid element found.",MSG_DEBUG);
   } else {
     unsigned int randIndex = rand() % valid.size();
     returnString = valid[randIndex];
   }
   return returnString;
+}
+/// ////////////////////////////////////////////////////////////////////////////
+// Weight the {inputVector} by corpus weight, and return a random valid value
+//   from the weighted vector.
+string randomWordFromWeightedCorpus(
+       map<string, map<unsigned int, vector<string> > > &inputVector,
+       string keyWord) {
+
+  // Initialise the weighted word vector.
+  vector<string> weightedVector;
+
+  // If all the corpora have the same weight (or there's only one file), read from
+  //   inputVector[keyWord][0], the first {int} map key.
+  if (!corpusWeightDiff) {
+    weightedVector = inputVector[keyWord][0];
+
+  // If the weight of the corpus files differ:
+  // If a word that is in a corpus is also in a same or higher
+  //   weighted corpus, only copy it for that higher weight.
+  } else {
+
+    // Get just the file IDs (vector elememet IDs) and the weights.
+    vector<pair<unsigned int, unsigned int> > fileWeights;
+    for (unsigned int i = 0; i < corpusFiles.size(); i++) {
+      fileWeights.push_back( make_pair(i,corpusFiles[i].second) );
+    }
+
+    // Order by weight (second in pair), descending.
+    sort(fileWeights.begin(), fileWeights.end(), sort2ndInPairDesc());
+
+    // Iterate through descending sorted {fileWeights}
+    for (unsigned int i = 0; i < fileWeights.size(); i++) {
+      vector<string> vec = inputVector[keyWord][fileWeights[i].first];
+
+      // Copy of {weightedVector} as it currently is.
+      vector<string> existingVector = weightedVector;
+      sort(existingVector.begin(), existingVector.end());
+
+      // Only need to add the word if it is not already in there.
+      for (unsigned int iWord = 0; iWord < vec.size(); iWord++) {
+        bool alreadyThere = findInVector(existingVector,vec[iWord]);
+        if (!alreadyThere) {
+
+          // Copy the vector as many times as the weight of the file.
+          for (unsigned int j = 0; j < fileWeights[i].second; j++) {
+            ostringstream ss;
+            weightedVector.push_back(vec[iWord]);
+          }
+        }
+      }
+    }
+    sort(weightedVector.begin(), weightedVector.end());
+  }
+
+  return randomValidElement(weightedVector);
 }
 /// ////////////////////////////////////////////////////////////////////////////
 // Snowball poem creator.
@@ -1124,9 +1249,7 @@ bool createPoemSnowball(string const &seedPhrase) {
 
             bool wordNotMatched = false;
             do {
-              unsigned int countOfMatched = validWords(wordsBackwards[chosenWord]).size();
-
-              if (countOfMatched == 0) {
+              if ( !hasValidWords(wordsBackwards,chosenWord) ) {
                 wordNotMatched = true;
               } else {
 
@@ -1151,8 +1274,9 @@ bool createPoemSnowball(string const &seedPhrase) {
                 // Iterate forwards, use for loop so we can get the index.
                 unsigned int iElement = 0;
                 for (iElement = 0; iElement < allKeys.size(); iElement++) {
-                  if (validWords(wordsBackwards[allKeys[iElement]]).size() != 0) break;
+                  if ( hasValidWords(wordsBackwards,allKeys[iElement]) ) break;
                 }
+
 
                 // We now know that all elements of {allKeys} from
                 //   (iElement) to (allKeys.size()-1) are valid.
@@ -1175,7 +1299,7 @@ bool createPoemSnowball(string const &seedPhrase) {
                 }
 
                 // Choose one of the values at random from the key.
-                chosenWord = randomValidElement(wordsBackwards[chosenKey]);
+                chosenWord = randomWordFromWeightedCorpus(wordsBackwards,chosenKey);
 
                 // Add the new word to the snowball vector.
                 theSnowball.push_back(chosenWord);
@@ -1203,7 +1327,8 @@ bool createPoemSnowball(string const &seedPhrase) {
 
       // Find a random matching word in {wordsForwards}
       // Loop through the tree until it reaches a dead branch
-      while (validWords(wordsForwards[chosenWord]).size() != 0) {
+      while (hasValidWords(wordsForwards,chosenWord)) {
+
         // Calculate all possible keys, e.g.
         // Snowball      = "i am all cold"
         // Possible keys = "i|am|all|cold"
@@ -1228,7 +1353,7 @@ bool createPoemSnowball(string const &seedPhrase) {
         unsigned int iElement = 0;
         unsigned int invalidKeyCount = 0;
         for (iElement = 0; iElement < allKeys.size(); iElement++) {
-          if (validWords(wordsForwards[allKeys[iElement]]).size() != 0) break;
+          if ( hasValidWords(wordsForwards,allKeys[iElement]) ) break;
           invalidKeyCount++;
         }
 
@@ -1262,11 +1387,16 @@ bool createPoemSnowball(string const &seedPhrase) {
         }
 
         // Choose one of the values at random from the key.
-        chosenWord = randomValidElement(wordsForwards[chosenKey]);
+        chosenWord = randomWordFromWeightedCorpus(wordsForwards,chosenKey);
+
 
         // Add the new word to the snowball vector.
         theSnowball.push_back(chosenWord);
       }
+
+
+
+
 
       // If we require a poem to be at least a certain length, then
       //   the poem is considered a failure if it is too short.
@@ -1316,7 +1446,7 @@ bool createPoemSnowball(string const &seedPhrase) {
 
     // Open the output file for this batch.
     ofstream outputFileSingle;
-    outputFileSingle.open (fileName.c_str(), fstream::app);
+    outputFileSingle.open(fileName.c_str(), fstream::app);
 
     // Print {allSnowballs} vector to output file.
     for (vector<string>::iterator iter = allSnowballs.begin();
@@ -1425,7 +1555,7 @@ int main(int argc, char* argv[]) {
 
   // Temporary vectors for corpus files and weights.
   // After we read argv, these will need to be paired together:
-  //    vector< pair<string,int> > corpusFiles;
+  //    vector< pair<string,unsigned int> > corpusFiles;
   vector<string> tempCorpusFile;
   vector<unsigned int> tempCorpusWeight;
 
@@ -1631,10 +1761,10 @@ int main(int argc, char* argv[]) {
   outputPoemsOnly = opt_o;
 
   // Write program information to standard output.
-  outputIsVerbose = opt_v;
+  outputIsVerbose = (outputIsVerbose || opt_v);
 
   // Write contents of internal program vectors to separate files.
-  saveVectorsToFile = opt_d;
+  saveVectorsToFile = (saveVectorsToFile || opt_d);
 
   // Don't use a lexicon file.
   useLexiconFile = !opt_L;
@@ -1667,7 +1797,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Match the corpus files and weights.
-  //   vector< pair<string,int> > corpusFiles;
+  //   vector< pair<string,unsigned int> > corpusFiles;
   if (tempCorpusFile.size() != 0) {
     unsigned int countFile   = tempCorpusFile.size();
     unsigned int countWeight = tempCorpusWeight.size();
@@ -1690,13 +1820,12 @@ int main(int argc, char* argv[]) {
     corpusFiles.push_back(make_pair(corpusDefaultFile,1));
   }
 
-
   // Check if the specified corpus file(s) actually exist.
   // (Don't do this if we're creating from raw text with -r)
   if (opt_c && !opt_r) {
-    for (vector< pair<string,int> >::iterator
+    for (vector< pair<string,unsigned int> >::iterator
          iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
-      pair<string,int> deRef = *iter;
+      pair<string,unsigned int> deRef = *iter;
       string fileName = deRef.first;
       ifstream checkFile(fileName.c_str());
       if ( !checkFile.good() ) {
@@ -1731,6 +1860,18 @@ int main(int argc, char* argv[]) {
   if (!useLexiconFile)   lexiconFileName   = "";
   if (!useThesaurusFile) thesaurusFileName = "";
 
+  // Figure out if the corpus files have different weights.
+  // Get the first file's weight and check against all others'.
+  if (corpusFiles.size() > 1) {
+    unsigned int corpusWeight = corpusFiles[0].second;
+    for (unsigned int i = 1; i < corpusFiles.size(); i++) {
+      if (corpusFiles[i].second != corpusWeight) {
+        corpusWeightDiff = true;
+      }
+    }
+  }
+
+
   // Verbose - Output the state of the program as specified by the input options.
   // Lines that begin with a hyphen are directly controlled by input options,
   //   lines that don't are inferred from the option.
@@ -1753,6 +1894,7 @@ int main(int argc, char* argv[]) {
     << "\n"
     << "\n  -c  corpusFiles:          " << toString(corpusFiles,
        "\n                            ")
+    << "\n   C  corpusWeightDiff:     " << toString(corpusWeightDiff)
     << "\n  -s  seedPhrasesFileName:  " << seedPhrasesFileName
     << "\n  -i  seedPhrases:          " << toString(seedPhrases,
        "\n                            ")
@@ -1800,28 +1942,39 @@ int main(int argc, char* argv[]) {
     loadInputFilesFromDirectory(directoryRawInput);
   }
 
+
   // Load each corpus file to the global vectors.
   // Error if file is not found.
-  for (vector< pair<string,int> >::iterator
+  unsigned int fileID = 0;
+  unsigned int fileWeight = 0;
+  for (vector< pair<string,unsigned int> >::iterator
        iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
-    pair<string,int> deRef = *iter;
-    string corpusString = deRef.first;
-    if ( !openInputCorpus(corpusString) ) {
-      outputToConsole("Cannot open corpus file: "+corpusString, MSG_ERROR);
+    pair<string,unsigned int> deRef = *iter;
+    string corpusFileName = deRef.first;
+    fileWeight = deRef.second;
+
+    if ( !openInputCorpus(corpusFileName,fileID,fileWeight) ) {
+      outputToConsole("Cannot open corpus file: "+corpusFileName, MSG_ERROR);
       outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
       outputToConsole("Please create this file and then run the program.", MSG_ERROR);
       outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
       outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
       return EXIT_FAILURE;
     }
+
+    // If the all corpus files have the same weight, add them with the same
+    //   fileID (so don't update the "fileID" counter)
+    if (corpusWeightDiff) fileID++;
   }
+  sortAndDedupe(wordsWithLength);
+  sortAndDedupe(wordsForwards);
+  sortAndDedupe(wordsBackwards);
+
 
   // Save the vectors as text files, if necessary
   if ( saveVectorsToFile ) {
-    mapSaveToFileKeyHeader(wordsForwards,"output-wordsForwards-keyHeader.txt");
-    mapSaveToFile         (wordsForwards,"output-wordsForwards.txt");
-    mapSaveToFileKeyHeader(wordsBackwards,"output-wordsBackwards-keyHeader.txt");
-    mapSaveToFile         (wordsBackwards,"output-wordsBackwards.txt");
+    mapSaveToFile(wordsForwards,"output-wordsForwards.txt");
+    mapSaveToFile(wordsBackwards,"output-wordsBackwards.txt");
     mapSaveToFileKeyHeader(wordsWithLength,"output-wordsWithLength.txt");
     saveToFileDeadBranches("output-wordsDeadBranches.txt");
   }
