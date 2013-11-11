@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.5"
-#define PROGRAM_DATE    "2013/11/10"
+#define PROGRAM_VERSION "Version 1.51"
+#define PROGRAM_DATE    "2013/11/11"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1112,12 +1112,17 @@ string randomWordFromWeightedCorpus(
 bool createPoemSnowball(string const &seedPhrase) {
   string fileName;
 
+  // Seed phrase stuff
+  bool useSeedPhrase = (seedPhrase != "");
+  vector<string> seedPhraseVector;
+  if (useSeedPhrase) seedPhraseVector = split(seedPhrase,' ');
+
   // Only need the file name if it's going to be written to a file.
   if (!outputPoemsOnly) {
 
     // Add the seedPhrase to the file name, if necessary.
     string fileNameAppend = "";
-    if (seedPhrase != "") { fileNameAppend = "-[" + seedPhrase + "]"; }
+    if (useSeedPhrase) { fileNameAppend = "-[" + toString(seedPhraseVector,"-") + "]"; }
     stringstream ss;
     ss << "output-snowballPoems-" << time(NULL) << fileNameAppend << ".txt";
 
@@ -1183,7 +1188,7 @@ bool createPoemSnowball(string const &seedPhrase) {
   // Pre-load often used vectors. These will always be used to start off poems,
   //   so it makes sense to compute them now, and not again for each poem.
   vector<string> startingWords;
-  if (seedPhrase == "") {
+  if ( !useSeedPhrase ) {
     startingWords = validWords(wordsWithLength[poemWordBegin]);
   }
 
@@ -1204,7 +1209,7 @@ bool createPoemSnowball(string const &seedPhrase) {
     if (generatorMarkov) {
 
       // seedPhrase does not exist.
-      if (seedPhrase == "") {
+      if ( !useSeedPhrase ) {
 
         // Select a random word from {startingWords}
         chosenWord = randomValidElement(startingWords);
@@ -1222,8 +1227,6 @@ bool createPoemSnowball(string const &seedPhrase) {
         // We need to build up the snowball as normal, so that we can
         //   let the usual code fill out the rest.
 
-        vector<string> seedPhraseVector;
-        seedPhraseVector = split(seedPhrase,' ');
         chosenWord = seedPhraseVector[0];
 
         // Type 1) Starting phrase: "i am new here"

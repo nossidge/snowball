@@ -35,8 +35,7 @@ was mostly Dickens.
 You can find more curated output on Twitter:
 https://twitter.com/SnowballPoetry
 
-# Quick Start
-## "I don't care about the geeky specifics, just let me make poems!"
+# Quick Start Guide
 
 Download the Windows 7 executable program here:
 https://github.com/nossidge/snowball/blob/master/bin/Release/snowball.exe?raw=true
@@ -164,7 +163,7 @@ the corpus files.
 **output-snowballPoems-1234567890.txt**
 This is the final output of all the created poems. The numbers are a timestamp.
 
-**output-snowballPoems-1234567890-[seed phrase].txt**
+**output-snowballPoems-1234567890-[seed-phrase].txt**
 This is the final output of all the created poems. These poems have all been
 generated from the seed phrase "seed phrase" within the square brackets.
 

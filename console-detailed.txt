@@ -35,7 +35,7 @@ snowball -s seed-phrases.txt
 Same as the usual snowballs, except that the file called "seed-phrases.txt" in
 the working directory will be used as seed phrases for the poems. Each line of
 "seed-phrases.txt" will be used to generate 10,000 snowball poems, and they will
-be saved in the form "output-snowballPoems-1234567890-[seed phrase].txt".
+be saved in the form "output-snowballPoems-1234567890-[seed-phrase].txt".
 
 ======== Program information
 
