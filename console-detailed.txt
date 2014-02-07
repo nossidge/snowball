@@ -2,11 +2,12 @@
 ======== Usage
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
+       snowball [-v | -q] [-v | -o] [-d] [-H]
+                [-n number] [-f number]
                 [-p number] [-k number] [-b number] [-e number]
                 [-x chars] [-X number] [-i (delim) | -s file]
                 [-c file (-C number)]
-								[-r directory] [l file | -L] [t file | -T]
+                [-r directory] [l file | -L] [t file | -T]
 
 ======== Most common options
 
@@ -69,6 +70,10 @@ purposes. This is overridden by the -q and -o options.
 Write contents of internal program vectors to separate files, for debugging. If
 used with the -r raw text option, this will also output a file containing the
 list of all words that were not found in the lexicon file.
+
+-H
+By default, the poem output will be preceded by a header containing the program
+inputs that were used to generate the poems. This option will suppress that.
 
 ======== Snowball generation
 

@@ -1,6 +1,7 @@
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]
+       snowball [-v | -q] [-v | -o] [-d] [-H]
+                [-n number] [-f number]
                 [-p number] [-k number] [-b number] [-e number]
                 [-x chars] [-X number] [-i (delim) | -s file]
                 [-c file (-C number)]
@@ -10,7 +11,7 @@ Example: snowball -r directory-name
          snowball -s seed-phrases.txt
          echo "i am the,the only,the main,disqualified" | snowball -i,
          snowball -v -n100 -c a.txt -C3 -c b.txt -C2
-         snowball -o -k2 -p100 -e8 > sbpoems-longkeys.txt
+         snowball -o -H -k2 -p100 -e8 > sbpoems-longkeys.txt
 
 Program information:
   -h        Output help instructions
@@ -22,6 +23,7 @@ Console output:
   -o        Write the snowball poems to stdout instead of to separate files
   -v        Write verbose program information to standard output
   -d        Debug. Write internal program vectors to separate files
+  -H        Do not write verbose program information header to the file
 
 Snowball generation:
                 ( Arguments should be numeric integers )

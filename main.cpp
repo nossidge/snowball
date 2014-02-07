@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.51"
-#define PROGRAM_DATE    "2013/11/11"
+#define PROGRAM_VERSION "Version 1.52"
+#define PROGRAM_DATE    "2014/02/07"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <time.h>
+#include <ctime>
 
 #include <iostream>
 #include <iomanip>
@@ -110,6 +111,15 @@ bool corpusWeightDiff = false;
 bool useThesaurusFile = true;
 string thesaurusFileName = "snowball-thesaurus.txt";
 
+// Write generation information header to poem file.
+bool writeHeaderInfo = true;
+
+// Seed phrases for the snowballs.
+vector<string> seedPhrases;
+
+// Console flags and options.
+string programInputArguments;
+
 /// ////////////////////////////////////////////////////////////////////////////
 
 // Vector for the lexicon. A simple word list.
@@ -147,22 +157,64 @@ map<string, map<unsigned int, vector<string> > > wordsForwards;
 map<string, map<unsigned int, vector<string> > > wordsBackwards;
 
 /// ////////////////////////////////////////////////////////////////////////////
-
+// User-friendly console output.
+string toString(vector<string> &inputVector, string delimiter) {
+  string returnString = "";
+  for(vector<string>::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    returnString = returnString + *iter + delimiter;
+  }
+  returnString.erase(returnString.find_last_not_of(delimiter)+1);
+  return returnString;
+}
+string toString(map<string, vector<string> > &inputVector,
+                string delimKey, string delimValue) {
+  string returnString = "";
+  for(map<string, vector<string> >::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    returnString = returnString + delimKey + iter->first;
+    for(vector<string>::iterator
+      iter2 = iter->second.begin(); iter2 != iter->second.end(); ++iter2) {
+      returnString = returnString + delimValue + *iter2;
+    }
+  }
+  returnString.erase(returnString.find_last_not_of(delimValue)+1);
+  return returnString;
+}
+string toString(vector< pair<string,unsigned int> > &inputVector, string delimiter) {
+  ostringstream ss;
+  for(vector< pair<string,unsigned int> >::iterator
+      iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
+    pair<string,unsigned int> deRef = *iter;
+    ss << deRef.second << " " << deRef.first << delimiter;
+  }
+  string returnString = ss.str();
+  returnString.erase(returnString.find_last_not_of(delimiter)+1);
+  return returnString;
+}
+string toString(bool inputBool) {
+  return (inputBool ? "True" : "False");
+}
+/// ////////////////////////////////////////////////////////////////////////////
 // Don't output ever if (outputIsQuiet)
 // Only output MSG_DEBUG stuff if (outputIsVerbose)
 // If (outputPoemsOnly), only output MSG_POEMs
 enum MsgType { MSG_STANDARD, MSG_ERROR, MSG_DEBUG, MSG_POEM };
-void outputToConsole(string const &message, MsgType const &type) {
+void outputToConsole(string const &message, MsgType const &type, bool lineEnd = true) {
   if (outputPoemsOnly && (type == MSG_POEM) ) {
-    cout << message << endl;
+    cout << message;
+    if (lineEnd) cout << endl;
   } else if (!outputPoemsOnly && !outputIsQuiet) {
     if ( (type == MSG_STANDARD) || (type == MSG_DEBUG && outputIsVerbose) ) {
-      cout << message << endl;
+      cout << message;
+      if (lineEnd) cout << endl;
     } else if (type == MSG_ERROR) {
-      cerr << message << endl;
+      cerr << message;
+      if (lineEnd) cerr << endl;
     }
   }
 }
+
 void outputToConsoleMajorError() {
   ostringstream ss;
   ss <<
@@ -174,21 +226,26 @@ void outputToConsoleMajorError() {
   ;
   outputToConsole(ss.str(),MSG_ERROR);
 }
-void outputToConsoleVersion(MsgType const &type) {
+
+string programVersion(string linePrefix = "") {
   ostringstream ss;
-  ss <<
-    "\n  Snowball Poem Generator - " PROGRAM_VERSION " - " PROGRAM_DATE
-    "\n  by Paul Thompson - nossidge@gmail.com"
-    "\n  Project Email    - snowballpoetry@gmail.com"
-    "\n  Project Homepage - https://github.com/nossidge/snowball"
-  ;
-  outputToConsole(ss.str(),type);
+  ss        << linePrefix
+    << "\n" << linePrefix << " Snowball Poem Generator - " PROGRAM_VERSION " - " PROGRAM_DATE
+    << "\n" << linePrefix << " by Paul Thompson - nossidge@gmail.com"
+    << "\n" << linePrefix << " Project Email    - snowballpoetry@gmail.com"
+    << "\n" << linePrefix << " Project Homepage - https://github.com/nossidge/snowball";
+  return ss.str();
 }
+void outputToConsoleVersion(MsgType const &type) {
+  outputToConsole(programVersion(" "),type);
+}
+
 void outputToConsoleUsage(MsgType const &type) {
   ostringstream ss;
   ss <<
     "\nUsage: snowball [-h | -V]"
-    "\n       snowball [-v | -q] [-v | -o] [-d] [-n number] [-f number]"
+    "\n       snowball [-v | -q] [-v | -o] [-d] [-H]"
+    "\n                [-n number] [-f number]"
     "\n                [-p number] [-k number] [-b number] [-e number]"
     "\n                [-x chars] [-X number] [-i (delim) | -s file]"
     "\n                [-c file (-C number)]"
@@ -197,6 +254,7 @@ void outputToConsoleUsage(MsgType const &type) {
   ;
   outputToConsole(ss.str(),type);
 }
+
 void outputToConsoleHelp(MsgType const &type) {
   outputToConsoleVersion(type);
   outputToConsoleUsage(type);
@@ -206,7 +264,7 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n         snowball -s seed-phrases.txt"
     "\n         echo \"i am the,the only,the main,disqualified\" | snowball -i,"
     "\n         snowball -v -n100 -c a.txt -C3 -c b.txt -C2"
-    "\n         snowball -o -k2 -p100 -e8 > sbpoems-longkeys.txt"
+    "\n         snowball -o -H -k2 -p100 -e8 > sbpoems-longkeys.txt"
     "\n"
     "\nProgram information:"
     "\n  -h        Output help instructions"
@@ -218,6 +276,7 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n  -o        Write the snowball poems to stdout instead of to separate files"
     "\n  -v        Write verbose program information to standard output"
     "\n  -d        Debug. Write internal program vectors to separate files"
+    "\n  -H        Do not write verbose program information header to the file"
     "\n"
     "\nSnowball generation:"
     "\n                ( Arguments should be numeric integers )"
@@ -246,30 +305,62 @@ void outputToConsoleHelp(MsgType const &type) {
   ;
   outputToConsole(ss.str(),type);
 }
-/// ////////////////////////////////////////////////////////////////////////////
-// User-friendly console output.
-string toString(vector<string> &inputVector, string delimiter) {
-  string returnString = "";
-  for (vector<string>::iterator
-       iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
-    returnString = returnString + *iter + delimiter;
-  }
-  returnString.erase(returnString.find_last_not_of(delimiter)+1);
-  return returnString;
-}
-string toString(vector< pair<string,unsigned int> > &inputVector, string delimiter) {
+
+// Verbose - Output the state of the program as specified by the input options.
+// Lines that begin with a hyphen are directly controlled by input options,
+//   lines that don't are inferred from the option.
+// Used with the -v option, and as a header for the resulting snowball files.
+string programOptions(string linePrefix = "") {
   ostringstream ss;
-  for (vector< pair<string,unsigned int> >::iterator
-       iter = inputVector.begin(); iter != inputVector.end(); ++iter) {
-    pair<string,unsigned int> deRef = *iter;
-    ss << deRef.second << " " << deRef.first << delimiter;
-  }
-  string returnString = ss.str();
-  returnString.erase(returnString.find_last_not_of(delimiter)+1);
-  return returnString;
+  ss        << linePrefix
+    << "\n" << linePrefix << " workingPath: " << workingPath
+    << "\n" << linePrefix << " programPath: " << programPath
+    << "\n" << linePrefix << " programFile: " << programFile
+    << "\n" << linePrefix
+    << "\n" << linePrefix << " -v outputIsVerbose:      " << toString(outputIsVerbose)
+    << "\n" << linePrefix << " -q outputIsQuiet:        " << toString(outputIsQuiet)
+    << "\n" << linePrefix << " -o outputPoemsOnly:      " << toString(outputPoemsOnly)
+    << "\n" << linePrefix << " -d saveVectorsToFile:    " << toString(saveVectorsToFile)
+    << "\n" << linePrefix
+    << "\n" << linePrefix << "  r processRawText:       " << toString(processRawText)
+    << "\n" << linePrefix << " -r directoryRawInput:    " << directoryRawInput
+    << "\n" << linePrefix << " -L useLexiconFile:       " << toString(useLexiconFile)
+    << "\n" << linePrefix << " -l lexiconFileName:      " << lexiconFileName
+    << "\n" << linePrefix << " -T useThesaurusFile:     " << toString(useThesaurusFile)
+    << "\n" << linePrefix << " -t thesaurusFileName:    " << thesaurusFileName
+    << "\n" << linePrefix
+    << "\n" << linePrefix << " -c corpusFiles:          " << toString(corpusFiles,
+       "\n"+linePrefix+"                          ")
+    << "\n" << linePrefix << "  C corpusWeightDiff:     " << toString(corpusWeightDiff)
+    << "\n" << linePrefix << " -s seedPhrasesFileName:  " << seedPhrasesFileName
+    << "\n" << linePrefix << " -i seedPhrases:          " << toString(seedPhrases,
+       "\n"+linePrefix+"                          ")
+    << "\n" << linePrefix
+    << "\n" << linePrefix << " -n poemTarget:           " << poemTarget
+    << "\n" << linePrefix << " -f poemFailureMax:       " << poemFailureMax
+    << "\n" << linePrefix << " -p multiKeyPercentage:   " << multiKeyPercentage
+    << "\n" << linePrefix << " -b poemWordBegin:        " << poemWordBegin
+    << "\n" << linePrefix << "  e usePoemWordEnd:       " << toString(usePoemWordEnd)
+    << "\n" << linePrefix << " -e poemWordEnd:          " << poemWordEnd
+    << "\n" << linePrefix << "  x excludeAnyChars:      " << toString(excludeAnyChars)
+    << "\n" << linePrefix << " -x excludedChars:        " << excludedChars
+    << "\n" << linePrefix << " -X exCMinWordLength:     " << exCMinWordLength
+    << "\n" << linePrefix;
+  return ss.str();
 }
-string toString(bool inputBool) {
-  return (inputBool ? "True" : "False");
+/// ////////////////////////////////////////////////////////////////////////////
+string currentDateTime() {
+  time_t t = time(0);
+  struct tm * now = localtime( & t );
+  stringstream ssTime;
+  ssTime   << setw(2) << setfill('0') << (now->tm_year + 1900)
+    << '/' << setw(2) << setfill('0') << (now->tm_mon + 1)
+    << '/' << setw(2) << setfill('0') << (now->tm_mday)
+    << ' ' << setw(2) << setfill('0') << (now->tm_hour)
+    << ':' << setw(2) << setfill('0') << (now->tm_min)
+    << ':' << setw(2) << setfill('0') << (now->tm_sec)
+  ;
+  return ssTime.str();
 }
 /// ////////////////////////////////////////////////////////////////////////////
 // Split a string into a string vector
@@ -1037,6 +1128,11 @@ bool hasValidWords(map<string, map<unsigned int, vector<string> > > &inputMap,
   return false;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+unsigned int randomNumber(unsigned int lBound, unsigned int uBound) {
+  unsigned int randNum = rand()%(uBound-lBound + 1) + lBound;
+  return randNum;
+}
+/// ////////////////////////////////////////////////////////////////////////////
 // Return a random element of a vector.
 // Ensure it is valid using the (validWords) function.
 // Return "" if no valid element.
@@ -1222,7 +1318,7 @@ bool createPoemSnowball(string const &seedPhrase) {
         //   Type 1) Starting phrase: "i am new here"
         //   Type 2) Middle phrase: "songs soothe"
         //
-        // Split seedPhrase on the space chars.
+        // Split seedPhrase on the space chars.wordsWithLength
         // If seedPhrase[0].length() == 1, then it's Type 1.
         // We need to build up the snowball as normal, so that we can
         //   let the usual code fill out the rest.
@@ -1438,9 +1534,24 @@ bool createPoemSnowball(string const &seedPhrase) {
   //   preprocessed corpus file it's unlikely there will be many.
   sortAndDedupe(allSnowballs);
 
+  // Create the generation infomation header, if necessary.
+  stringstream ssHeader;
+  if (writeHeaderInfo) {
+    ssHeader << string(80,'#') << programVersion("#") << endl;
+    ssHeader << "#" << endl;
+    ssHeader << "# File created on  - " << currentDateTime() << endl;
+    ssHeader << "# Command options  - \"" << programInputArguments << "\"" << endl;
+    ssHeader << string(80,'#') << programOptions("#") << string(80,'#') << endl;
+  }
+
   // If the option "outputPoemsOnly" is true then:
   // Write the generated snowball poems to stdout INSTEAD OF to a file.
   if (outputPoemsOnly) {
+
+    // Write the header, if necessary.
+    if (writeHeaderInfo) outputToConsole(ssHeader.str(), MSG_POEM);
+
+    // Write {allSnowballs} vector to stdout.
     for(unsigned int i=0; i < allSnowballs.size(); i++) {
       outputToConsole(allSnowballs[i], MSG_POEM);
     }
@@ -1451,7 +1562,10 @@ bool createPoemSnowball(string const &seedPhrase) {
     ofstream outputFileSingle;
     outputFileSingle.open(fileName.c_str(), fstream::app);
 
-    // Print {allSnowballs} vector to output file.
+    // Write the header, if necessary.
+    if (writeHeaderInfo) outputFileSingle << ssHeader.str();
+
+    // Write {allSnowballs} vector to output file.
     for (vector<string>::iterator iter = allSnowballs.begin();
                                   iter!= allSnowballs.end(); ++iter) {
       outputFileSingle << *iter << endl;
@@ -1464,8 +1578,9 @@ bool createPoemSnowball(string const &seedPhrase) {
 
 
   // If we had to abandon some poems due to multiple failures, inform the user.
-  // But, since it's not really an error, only do this if the "verbose" option
-  //   was specified (so use MSG_DEBUG).
+  //   But it's not really an error (they do have some poems, just not as many
+  //   as they wanted), so only do this if the "verbose" option was specified.
+  //   (so use MSG_DEBUG).
   if (poemCountFailure >= poemFailureMax) {
     outputToConsole("Too many incomplete poems.", MSG_DEBUG);
     outputToConsole("Couldn't generate enough beginnings from seed phrase: "+seedPhrase, MSG_DEBUG);
@@ -1511,7 +1626,7 @@ bool setPathWorkingDirectory() {
   return pathFound;
 }
 
-// Windows only. Set the values of the "programPath" and "programFile" globals.
+// Windows only. Set the values of the "proprogramPath" and "programFile" globals.
 bool setPathAndFileName() {
 
   // Use Windows API GetModuleFileName() function.
@@ -1535,6 +1650,11 @@ bool setPathAndFileName() {
 }
 /// ////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[]) {
+
+  // Get the console options that were specified. (only after the first element)
+  vector<string> argarg(argv + 1, argv + argc);
+  programInputArguments = toString(argarg," ");
+  if (programInputArguments.empty()) programInputArguments = "default";
 
   // Find the location of the working directory.
   if (!setPathWorkingDirectory()) {
@@ -1568,6 +1688,7 @@ int main(int argc, char* argv[]) {
   // Booleans for whether or not the option was specified.
   bool invalidOption = false;
   bool opt_h = false, opt_V = false;
+  bool opt_H = false;
   bool opt_q = false, opt_o = false, opt_v = false, opt_d = false;
   bool opt_s = false, opt_i = false;
   bool opt_c = false, opt_r = false, opt_l = false, opt_L = false;
@@ -1578,7 +1699,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdn:f:p:k:b:e:x:X:s:i::c:C:t:r:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:x:X:s:i::c:C:t:r:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1588,6 +1709,7 @@ int main(int argc, char* argv[]) {
       case 'o':  opt_o = true;  break;
       case 'v':  opt_v = true;  break;
       case 'd':  opt_d = true;  break;
+      case 'H':  opt_H = true;  break;
       case 'L':  opt_L = true;  break;
       case 'T':  opt_T = true;  break;
 
@@ -1769,6 +1891,9 @@ int main(int argc, char* argv[]) {
   // Write contents of internal program vectors to separate files.
   saveVectorsToFile = (saveVectorsToFile || opt_d);
 
+  // Write generation information header to poem file.
+  writeHeaderInfo = !opt_H;
+
   // Don't use a lexicon file.
   useLexiconFile = !opt_L;
 
@@ -1779,7 +1904,6 @@ int main(int argc, char* argv[]) {
   //      Don't use a seed phrase at all.
   //   -s Read from specified file.
   //   -i Read from stdin.
-  vector<string> seedPhrases;
 
   // Take seed phrases as input from a file.
   // Loop through the input file and fill {seedPhrases}
@@ -1874,46 +1998,10 @@ int main(int argc, char* argv[]) {
     }
   }
 
-
   // Verbose - Output the state of the program as specified by the input options.
   // Lines that begin with a hyphen are directly controlled by input options,
   //   lines that don't are inferred from the option.
-  ss.str("");
-  ss<< "\n  workingPath:  " << workingPath
-    << "\n  programPath:  " << programPath
-    << "\n  programFile:  " << programFile
-    << "\n"
-    << "\n  -v  outputIsVerbose:      " << toString(outputIsVerbose)
-    << "\n  -q  outputIsQuiet:        " << toString(outputIsQuiet)
-    << "\n  -o  outputPoemsOnly:      " << toString(outputPoemsOnly)
-    << "\n  -d  saveVectorsToFile:    " << toString(saveVectorsToFile)
-    << "\n"
-    << "\n   r  processRawText:       " << toString(processRawText)
-    << "\n  -r  directoryRawInput:    " << directoryRawInput
-    << "\n  -L  useLexiconFile:       " << toString(useLexiconFile)
-    << "\n  -l  lexiconFileName:      " << lexiconFileName
-    << "\n  -T  useThesaurusFile:     " << toString(useThesaurusFile)
-    << "\n  -t  thesaurusFileName:    " << thesaurusFileName
-    << "\n"
-    << "\n  -c  corpusFiles:          " << toString(corpusFiles,
-       "\n                            ")
-    << "\n   C  corpusWeightDiff:     " << toString(corpusWeightDiff)
-    << "\n  -s  seedPhrasesFileName:  " << seedPhrasesFileName
-    << "\n  -i  seedPhrases:          " << toString(seedPhrases,
-       "\n                            ")
-    << "\n"
-    << "\n  -n  poemTarget:           " << poemTarget
-    << "\n  -f  poemFailureMax:       " << poemFailureMax
-    << "\n  -p  multiKeyPercentage:   " << multiKeyPercentage
-    << "\n  -b  poemWordBegin:        " << poemWordBegin
-    << "\n   e  usePoemWordEnd:       " << toString(usePoemWordEnd)
-    << "\n  -e  poemWordEnd:          " << poemWordEnd
-    << "\n   x  excludeAnyChars:      " << toString(excludeAnyChars)
-    << "\n  -x  excludedChars:        " << excludedChars
-    << "\n  -X  exCMinWordLength:     " << exCMinWordLength
-    << "\n"
-  ;
-  outputToConsole(ss.str(), MSG_DEBUG);
+  outputToConsole(programOptions(" "), MSG_DEBUG);
 
 
   /// Cool. All inputs and options dealt with.
@@ -1982,9 +2070,7 @@ int main(int argc, char* argv[]) {
     saveToFileDeadBranches("output-wordsDeadBranches.txt");
   }
 
-
   /// Inputs are all present and correct. Let's make some poems!
-
 
   // Set a seed for the RNG.
   srand (time(NULL));
