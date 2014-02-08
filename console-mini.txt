@@ -2,10 +2,13 @@
 Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-H]
                 [-n number] [-f number]
-                [-p number] [-k number] [-b number] [-e number]
-                [-x chars] [-X number] [-i (delim) | -s file]
+                [-p number] [-k number]
+                [-b number] [-e number]
+                [-x chars] [-X number]
+                [-i (delim) | -s file]
                 [-c file (-C number)]
-                [-r directory] [l file | -L] [t file | -T]
+                [-r directory | -R directory]
+                [l file | -L] [t file | -T]
 
 Example: snowball -r directory-name
          snowball -s seed-phrases.txt
@@ -43,7 +46,8 @@ Snowball seed phrases:
 Processing raw input:
   -c snowball-corpus.txt      The corpus file(s) containing snowballing words
   -C [ number ]               The weight of the corresponding corpus file
-  -r ./input_directory        Create from raw English text files
+  -r ./input_directory        Create from raw English text files in directory
+  -R ./root_directory         Same as -r, but loads files recursively
   -l snowball-lexicon.txt     The file that contains list of valid words
   -L                          Don't use a lexicon file to validate words
   -t snowball-thesaurus.txt   The file that contains the words to switch

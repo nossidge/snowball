@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.52"
-#define PROGRAM_DATE    "2014/02/07"
+#define PROGRAM_VERSION "Version 1.53"
+#define PROGRAM_DATE    "2014/02/08"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +58,9 @@ bool outputPoemsOnly = false;
 //   previously discovered snowballing phrases)
 bool processRawText = false;
 string directoryRawInput = "";
+
+// Recurse through sub-directories, or just use the top-level files.
+bool recurseRawDirs = false;
 
 // Should the temporary vectors be saved to disk as text files?
 bool saveVectorsToFile = false;
@@ -246,10 +249,13 @@ void outputToConsoleUsage(MsgType const &type) {
     "\nUsage: snowball [-h | -V]"
     "\n       snowball [-v | -q] [-v | -o] [-d] [-H]"
     "\n                [-n number] [-f number]"
-    "\n                [-p number] [-k number] [-b number] [-e number]"
-    "\n                [-x chars] [-X number] [-i (delim) | -s file]"
+    "\n                [-p number] [-k number]"
+    "\n                [-b number] [-e number]"
+    "\n                [-x chars] [-X number]"
+    "\n                [-i (delim) | -s file]"
     "\n                [-c file (-C number)]"
-    "\n                [-r directory] [l file | -L] [t file | -T]"
+    "\n                [-r directory | -R directory]"
+    "\n                [l file | -L] [t file | -T]"
     "\n"
   ;
   outputToConsole(ss.str(),type);
@@ -296,7 +302,8 @@ void outputToConsoleHelp(MsgType const &type) {
     "\nProcessing raw input:"
     "\n  -c snowball-corpus.txt      The corpus file containing snowballing words"
     "\n  -C [ number ]               The weight of the corresponding corpus file"
-    "\n  -r ./input_directory        Create from raw English text files"
+    "\n  -r ./input_directory        Create from raw English text files in directory"
+    "\n  -R ./root_directory         Same as -r, but loads files recursively"
     "\n  -l snowball-lexicon.txt     The file that contains list of valid words"
     "\n  -L                          Don't use a lexicon file to validate words"
     "\n  -t snowball-thesaurus.txt   The file that contains the words to switch"
@@ -324,6 +331,7 @@ string programOptions(string linePrefix = "") {
     << "\n" << linePrefix
     << "\n" << linePrefix << "  r processRawText:       " << toString(processRawText)
     << "\n" << linePrefix << " -r directoryRawInput:    " << directoryRawInput
+    << "\n" << linePrefix << " -R recurseRawDirs:       " << toString(recurseRawDirs)
     << "\n" << linePrefix << " -L useLexiconFile:       " << toString(useLexiconFile)
     << "\n" << linePrefix << " -l lexiconFileName:      " << lexiconFileName
     << "\n" << linePrefix << " -T useThesaurusFile:     " << toString(useThesaurusFile)
@@ -883,15 +891,15 @@ string loadInputFile(string const &fileName) {
   // Sort the raw snowball vector.
   sortAndDedupe(rawSnowball);
 
-  // Save the raw snowball vector to a temporary "pro-" file.
+  // Save the raw snowball vector to a temporary "snowball-input-temp-" file.
   stringstream ss;
-  ss << "pro-" << setw(5) << setfill('0') << functionCounter << ".txt";
+  ss << "snowball-input-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
   vectorSaveToFile(rawSnowball,ss.str(),true,false);
 
   // Output debug info to console.
   outputToConsole("loadInputFile: Output: " + ss.str(), MSG_DEBUG);
 
-  // Return the name of the temporary "pro-" file.
+  // Return the name of the temporary "snowball-input-temp-" file.
   return ss.str();
 }
 /// ////////////////////////////////////////////////////////////////////////////
@@ -954,6 +962,48 @@ bool openInputCorpus(string const &fileName,
   return true;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+// Stolen shamelessly from:
+// http://www.daniweb.com/software-development/cpp/threads/149627/
+vector<string> travelDirectory(string directory, bool fullPath) {
+  vector<string> fileList;
+  DIR *dir;
+  struct dirent *ent;
+
+  // Open the directory and read from it until we reach the end.
+  if ((dir=opendir(directory.c_str())) != NULL) {
+    while((ent=readdir(dir)) != NULL) {
+
+      // Return the full path and name, or just the name of the file.
+      if (fullPath) {
+        stringstream fullname;
+        fullname << directory << PathSeparator << ent->d_name;
+        fileList.push_back(fullname.str());
+      } else {
+        fileList.push_back(ent->d_name);
+      }
+    }
+    closedir(dir);
+  }
+  return fileList;
+}
+void travelDirectoryRecursive(string directory, vector<string> *fullList) {
+  vector<string> fileList = travelDirectory(directory,false);
+
+  for (vector<string>::iterator i=fileList.begin(); i!=fileList.end(); ++i) {
+
+    // Ignore the two "dot" abstraction directories.
+    if (strcmp((*i).c_str(), ".") &&
+        strcmp((*i).c_str(), "..")) {
+
+      // Return the full path and name of the file.
+      stringstream fullname;
+      fullname << directory << PathSeparator << (*i);
+      fullList->push_back(fullname.str());
+      travelDirectoryRecursive(fullname.str(), fullList);
+    }
+  }
+}
+/// ////////////////////////////////////////////////////////////////////////////
 bool loadInputFilesFromDirectory(string const &directoryPath) {
   outputToConsole("loadInputFilesFromDirectory: " + directoryPath, MSG_DEBUG);
 
@@ -963,21 +1013,13 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
   //   http://stackoverflow.com/questions/612097 )
   vector<string> inputFiles;
 
-  DIR *dir;
-  struct dirent *ent;
-  if ((dir = opendir( directoryPath.c_str() )) != NULL) {
-
-    // Print all the files and directories within the directory.
-    while ( (ent = readdir(dir)) != NULL) {
-
-      // Ignore dot-hidden files and current/parent directory refs.
-      if ( ent->d_name[0] != '.' ) {
-        inputFiles.push_back(ent->d_name);
-      }
-    }
-    closedir(dir);
-  } else { return false; }
-
+  // Get full paths of all files to read.
+  // Recurse through sub-directories if necessary.
+  if (recurseRawDirs) {
+    travelDirectoryRecursive(directoryPath,&inputFiles);
+  } else {
+    inputFiles = travelDirectory(directoryPath,true);
+  }
 
   // Vector of all files that are created in this process.
   vector<string> allInputFiles;
@@ -986,9 +1028,7 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
   for(vector<string>::iterator iter = inputFiles.begin();
                                iter != inputFiles.end();
                                iter++) {
-    stringstream ssFullFilePath;
-    ssFullFilePath << directoryPath << PathSeparator << *iter;
-    string outputFileName = loadInputFile(ssFullFilePath.str().c_str());
+    string outputFileName = loadInputFile(*iter);
     allInputFiles.push_back(outputFileName);
   }
 
@@ -1318,7 +1358,7 @@ bool createPoemSnowball(string const &seedPhrase) {
         //   Type 1) Starting phrase: "i am new here"
         //   Type 2) Middle phrase: "songs soothe"
         //
-        // Split seedPhrase on the space chars.wordsWithLength
+        // Split seedPhrase on the space chars.
         // If seedPhrase[0].length() == 1, then it's Type 1.
         // We need to build up the snowball as normal, so that we can
         //   let the usual code fill out the rest.
@@ -1534,7 +1574,7 @@ bool createPoemSnowball(string const &seedPhrase) {
   //   preprocessed corpus file it's unlikely there will be many.
   sortAndDedupe(allSnowballs);
 
-  // Create the generation infomation header, if necessary.
+  // Create the generation information header, if necessary.
   stringstream ssHeader;
   if (writeHeaderInfo) {
     ssHeader << string(80,'#') << programVersion("#") << endl;
@@ -1626,7 +1666,7 @@ bool setPathWorkingDirectory() {
   return pathFound;
 }
 
-// Windows only. Set the values of the "proprogramPath" and "programFile" globals.
+// Windows only. Set the values of the "programPath" and "programFile" globals.
 bool setPathAndFileName() {
 
   // Use Windows API GetModuleFileName() function.
@@ -1688,10 +1728,11 @@ int main(int argc, char* argv[]) {
   // Booleans for whether or not the option was specified.
   bool invalidOption = false;
   bool opt_h = false, opt_V = false;
-  bool opt_H = false;
   bool opt_q = false, opt_o = false, opt_v = false, opt_d = false;
+  bool opt_H = false;
   bool opt_s = false, opt_i = false;
-  bool opt_c = false, opt_r = false, opt_l = false, opt_L = false;
+  bool opt_c = false, opt_r = false, opt_R = false;
+  bool opt_l = false, opt_L = false;
   bool opt_t = false, opt_T = false;
 
   // Handle option errors manually.
@@ -1699,7 +1740,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:x:X:s:i::c:C:t:r:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:x:X:s:i::c:C:t:r:R:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1791,6 +1832,12 @@ int main(int argc, char* argv[]) {
         directoryRawInput = optarg;
         break;
 
+      // Create from raw text files.
+      case 'R': // -R ./input_directory
+        opt_R = true;
+        directoryRawInput = optarg;
+        break;
+
       // Specify the lexicon file.
       case 'l': // -l snowball-lexicon.txt
         opt_l = true;
@@ -1879,6 +1926,13 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
+  // Error if -r and -R
+  if (opt_r && opt_R) {
+    outputToConsole("You can't specify option -r as well as -R.", MSG_ERROR);
+    outputToConsoleUsage(MSG_ERROR);
+    return EXIT_FAILURE;
+  }
+
   // Disable all messages; do not write anything to standard output.
   outputIsQuiet = opt_q;
 
@@ -1899,6 +1953,10 @@ int main(int argc, char* argv[]) {
 
   // Don't use a thesaurus file.
   useThesaurusFile = !opt_T;
+
+  // Recurse through sub-directories to find raw text.
+  recurseRawDirs = (recurseRawDirs || opt_R);
+
 
   // There are 3 ways of handling seed phrases:
   //      Don't use a seed phrase at all.
@@ -1922,6 +1980,7 @@ int main(int argc, char* argv[]) {
       seedPhrases.push_back(line);
     }
   }
+
 
   // Match the corpus files and weights.
   //   vector< pair<string,unsigned int> > corpusFiles;
@@ -1949,7 +2008,7 @@ int main(int argc, char* argv[]) {
 
   // Check if the specified corpus file(s) actually exist.
   // (Don't do this if we're creating from raw text with -r)
-  if (opt_c && !opt_r) {
+  if ( opt_c && !(opt_r || opt_R) ) {
     for (vector< pair<string,unsigned int> >::iterator
          iter=corpusFiles.begin(); iter!=corpusFiles.end(); ++iter) {
       pair<string,unsigned int> deRef = *iter;
@@ -1968,7 +2027,7 @@ int main(int argc, char* argv[]) {
 
   // Create from raw text files.
   // Check if "directoryRawInput" is an existing directory.
-  if (opt_r) {
+  if (opt_r || opt_R) {
     DIR *dir;
     if ((dir = opendir( directoryRawInput.c_str() )) == NULL) {
       outputToConsole("Specified input directory not found: " + directoryRawInput, MSG_ERROR);
