@@ -1,4 +1,4 @@
-
+﻿
 /*//////////////////////////////////////////////////////////////////////////////
 
   Snowball Poem Generator
@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.53"
-#define PROGRAM_DATE    "2014/02/08"
+#define PROGRAM_VERSION "Version 1.54"
+#define PROGRAM_DATE    "2014/02/12"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,8 +89,10 @@ bool generatorRandom = false;
 unsigned int poemWordBegin = 1;
 
 // Reject poems where last word is fewer than 'n' letters long.
-bool usePoemWordEnd = false;
+// Or use "Max" to truncate output down to just 'n' length.
 unsigned int poemWordEnd = 8;
+bool usePoemWordEnd = false;
+bool usePoemWordEndMax = false;
 
 // Should we exclude any characters (for lipogram output).
 bool excludeAnyChars = false;
@@ -250,7 +252,7 @@ void outputToConsoleUsage(MsgType const &type) {
     "\n       snowball [-v | -q] [-v | -o] [-d] [-H]"
     "\n                [-n number] [-f number]"
     "\n                [-p number] [-k number]"
-    "\n                [-b number] [-e number]"
+    "\n                [-b number] [-e number | -E number]"
     "\n                [-x chars] [-X number]"
     "\n                [-i (delim) | -s file]"
     "\n                [-c file (-C number)]"
@@ -292,6 +294,7 @@ void outputToConsoleHelp(MsgType const &type) {
     "\n  -k1           Specify a minimum word key size to use. Default is 1"
     "\n  -b4           Begin poems at a word length other than 1"
     "\n  -e8           Reject poems where last word is fewer than 'n' letters long"
+    "\n  -E8           Truncate poems so last word is exactly 'n' letters long"
     "\n  -x [ chars ]  Create poems that exclude all argument letters"
     "\n  -X3           Minimum word length to apply 'x' filtering to"
     "\n"
@@ -1528,13 +1531,9 @@ bool createPoemSnowball(string const &seedPhrase) {
         // Choose one of the values at random from the key.
         chosenWord = randomWordFromWeightedCorpus(wordsForwards,chosenKey);
 
-
         // Add the new word to the snowball vector.
         theSnowball.push_back(chosenWord);
       }
-
-
-
 
 
       // If we require a poem to be at least a certain length, then
@@ -1557,11 +1556,11 @@ bool createPoemSnowball(string const &seedPhrase) {
       }
     }
 
-    // Add {theSnowball} to {allSnowballs}.
+    // Write poem to {allSnowballs}, truncating if necessary.
+    unsigned int maxLen = ( usePoemWordEndMax ? (poemWordEnd-poemWordBegin+1) : theSnowball.size() );
     string snowballString;
-    for (vector<string>::iterator iter = theSnowball.begin();
-                                  iter!= theSnowball.end(); ++iter) {
-      snowballString = snowballString + *iter + " ";
+    for (unsigned int i = 0; i < maxLen; i++) {
+      snowballString = snowballString + theSnowball[i] + " ";
     } snowballString.erase(snowballString.find_last_not_of(" ")+1);
     allSnowballs.push_back(snowballString);
 
@@ -1740,7 +1739,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:x:X:s:i::c:C:t:r:R:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:E:x:X:s:i::c:C:t:r:R:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1782,6 +1781,13 @@ int main(int argc, char* argv[]) {
       // Reject poems where last word is fewer than 'n' letters long.
       case 'e':
         usePoemWordEnd = true;
+        poemWordEnd = (unsigned int)abs(atoi(optarg));
+        break;
+
+      // Truncate output poems to last word with 'n' letters.
+      case 'E':
+        usePoemWordEnd = true;
+        usePoemWordEndMax = true;
         poemWordEnd = (unsigned int)abs(atoi(optarg));
         break;
 

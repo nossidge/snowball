@@ -5,7 +5,7 @@ Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-H]
                 [-n number] [-f number]
                 [-p number] [-k number]
-                [-b number] [-e number]
+                [-b number] [-e number | -E number]
                 [-x chars] [-X number]
                 [-i (delim) | -s file]
                 [-c file (-C number)]
@@ -134,6 +134,11 @@ only comes into play after the poem has been generated. It checks that the poem
 is long enough, and if it isn't the poem is discarded. You can uses the failure
 count -f option to specify how many failed poems to allow before throwing an
 error.
+
+-E8
+"Exact ending word length" - Output poems whose last words are exactly 'n'
+letters long. This is the same as the -e option, but once the poem is determined
+to be long enough, it is truncated to exactly the length specified.
 
 -x aeiuy
 Exclude certain letters from generated poems. This lets you create lipogrammatic

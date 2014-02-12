@@ -3,7 +3,7 @@ Usage: snowball [-h | -V]
        snowball [-v | -q] [-v | -o] [-d] [-H]
                 [-n number] [-f number]
                 [-p number] [-k number]
-                [-b number] [-e number]
+                [-b number] [-e number | -E number]
                 [-x chars] [-X number]
                 [-i (delim) | -s file]
                 [-c file (-C number)]
@@ -36,6 +36,7 @@ Snowball generation:
   -k1           Specify a minimum word key size to use. Default is 1
   -b4           Begin poems at a word length other than 1
   -e8           Reject poems where last word is fewer than 'n' letters long
+  -E8           Truncate poems so last word is exactly 'n' letters long
   -x [ chars ]  Create poems that exclude all argument letters
   -X3           Minimum word length to apply 'x' filtering to
 
