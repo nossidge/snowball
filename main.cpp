@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.54"
-#define PROGRAM_DATE    "2014/02/12"
+#define PROGRAM_VERSION "Version 1.56"
+#define PROGRAM_DATE    "2014/02/13"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,6 +358,9 @@ string programOptions(string linePrefix = "") {
     << "\n" << linePrefix << " -X exCMinWordLength:     " << exCMinWordLength
     << "\n" << linePrefix;
   return ss.str();
+}
+void outputToConsoleOptions(MsgType const &type) {
+  outputToConsole(programOptions(" "),type);
 }
 /// ////////////////////////////////////////////////////////////////////////////
 string currentDateTime() {
@@ -767,10 +770,11 @@ string loadInputFile(string const &fileName) {
       std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 
       // Quick hack to fix memory issue when working with long lines.
-      // Split line up into 5000 character strings. This might mean that we
+      // Split line up into shorter length strings. This means that we might
       //   miss some possible snowballing phrases at the break of the lines,
-      //   but it also means that we don't run out of memory.
-      unsigned int const maxLen = 5000000;
+      //   but it also means that we don't run out of memory when we do the
+      //   thesaurus line substitution.
+      unsigned int const maxLen = 50000;
       unsigned int lineSize = line.size();
       vector<string> lineVectorOrig;
       for (unsigned int i = 0; i <= (lineSize / maxLen); i++) {
@@ -804,6 +808,9 @@ string loadInputFile(string const &fileName) {
             // Default is true. Set to false if the word fails validation.
             bool validWord = true;
 
+            // Have we reached an "end" word (last word before a comma or full stop)
+            bool punctuationStopper = false;
+
             // If the word contains punctuation it is invalid.
             unsigned int punctCount = 0;
             for (string::iterator it = word.begin(); it!=word.end(); ++it)
@@ -812,12 +819,22 @@ string loadInputFile(string const &fileName) {
               validWord = false;
             }
 
+            // If the last char is a full stop or a comma it's valid, but don't
+            //   continue to look for snowballing words after it.
+            char finalChar = word[word.length()-1];
+            if ( finalChar=='.' || finalChar==',' ) {
+              string wordLeft = word.substr(0,word.length()-1);
+              validWord = true;
+              punctuationStopper = true;
+              word = wordLeft;
+            }
+
             // Check the lexicon file, if necessary.
-            if (useLexiconFile) {
+            if (useLexiconFile && validWord) {
 
               // If the word is not in the lexicon it is invalid.
               bool isInLexicon = findInVector(wordsLexicon,word);
-              if ( validWord && !isInLexicon ) {
+              if ( !isInLexicon ) {
                 validWord = false;
 
                 // Write to {wordsNotInLexicon}, if necessary.
@@ -831,24 +848,15 @@ string loadInputFile(string const &fileName) {
             bool validSnowball = ( (previousWord.length() != 0)
                  && (word.length() == previousWord.length()+1) );
 
-            // If the word contains punctuation, then drop it.
-            if (!validWord) word = "";
-
             // If we have come to an invalid word, or one that breaks the
             //   snowball sequence, then write whatever is in {snowballBuffer}
-            //   to the
+            //   to {rawSnowball}
             if (!validSnowball || !validWord) {
 
               // Print out the contents of the {snowballBuffer} vector
               //   (but only if there's anything actually in it)
-              if ( snowballBuffer.size() > 1 ) {
-                stringstream ss;
-                for (vector<string>::iterator iter = snowballBuffer.begin();
-                                              iter!=snowballBuffer.end(); ++iter)
-                    ss << *iter << " ";
-                std::string s = ss.str();
-                s.erase(s.find_last_not_of(" \n\r\t")+1);  // Right trim
-                rawSnowball.push_back(s);
+              if (snowballBuffer.size() > 1) {
+                rawSnowball.push_back( toString(snowballBuffer," ") );
               }
 
               // Also, empty the {snowballBuffer} vector
@@ -866,18 +874,15 @@ string loadInputFile(string const &fileName) {
               }
               snowballBuffer.push_back(word);
             }
+
+            // If the word is invalid, then break the chain.
+            if (!validWord || punctuationStopper) word = "";
             previousWord = word;
           }
 
           // If there's anything in {snowballBuffer}, copy to {rawSnowball}
-          if ( snowballBuffer.size() > 1 ) {
-            stringstream ss;
-            for (vector<string>::iterator iter = snowballBuffer.begin();
-                                          iter!= snowballBuffer.end(); ++iter)
-                ss << *iter << " ";
-            std::string s = ss.str();
-            s.erase(s.find_last_not_of(" ")+1);
-            rawSnowball.push_back(s);
+          if (snowballBuffer.size() > 1) {
+            rawSnowball.push_back( toString(snowballBuffer," ") );
           }
         }
       }
@@ -1257,7 +1262,7 @@ bool createPoemSnowball(string const &seedPhrase) {
   if (useSeedPhrase) seedPhraseVector = split(seedPhrase,' ');
 
   // Only need the file name if it's going to be written to a file.
-  if (!outputPoemsOnly) {
+  if ( !outputPoemsOnly && (poemTarget > 0) ) {
 
     // Add the seedPhrase to the file name, if necessary.
     string fileNameAppend = "";
@@ -1321,6 +1326,12 @@ bool createPoemSnowball(string const &seedPhrase) {
         return false;
       }
     }
+  }
+
+
+  // Abandon function if poemTarget is zero.
+  if (poemTarget == 0) {
+    return true;
   }
 
 
@@ -2021,11 +2032,14 @@ int main(int argc, char* argv[]) {
       string fileName = deRef.first;
       ifstream checkFile(fileName.c_str());
       if ( !checkFile.good() ) {
-        outputToConsole("Cannot open corpus file: "+fileName, MSG_ERROR);
-        outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
-        outputToConsole("Please create this file and then run the program.", MSG_ERROR);
-        outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
-        outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
+        ss.str("");
+        ss << "Cannot open corpus file: " << fileName <<
+          "\nThis file is necessary for the program to function."
+          "\nPlease create this file and then run the program."
+          "\nThis file can be generated using the -r or -R options."
+          "\nYou can use -h or check the readme for more info."
+        ;
+        outputToConsole(ss.str(),MSG_ERROR);
         return EXIT_FAILURE;
       }
     }
@@ -2066,7 +2080,7 @@ int main(int argc, char* argv[]) {
   // Verbose - Output the state of the program as specified by the input options.
   // Lines that begin with a hyphen are directly controlled by input options,
   //   lines that don't are inferred from the option.
-  outputToConsole(programOptions(" "), MSG_DEBUG);
+  outputToConsoleOptions(MSG_DEBUG);
 
 
   /// Cool. All inputs and options dealt with.
@@ -2110,11 +2124,14 @@ int main(int argc, char* argv[]) {
     fileWeight = deRef.second;
 
     if ( !openInputCorpus(corpusFileName,fileID,fileWeight) ) {
-      outputToConsole("Cannot open corpus file: "+corpusFileName, MSG_ERROR);
-      outputToConsole("This file is necessary for the program to function.", MSG_ERROR);
-      outputToConsole("Please create this file and then run the program.", MSG_ERROR);
-      outputToConsole("This file can be generated using the -r option.", MSG_ERROR);
-      outputToConsole("You can use -h or check the readme for more info.", MSG_ERROR);
+      ss.str("");
+      ss << "Cannot open corpus file: " << corpusFileName <<
+        "\nThis file is necessary for the program to function."
+        "\nPlease create this file and then run the program."
+        "\nThis file can be generated using the -r or -R options."
+        "\nYou can use -h or check the readme for more info."
+      ;
+      outputToConsole(ss.str(),MSG_ERROR);
       return EXIT_FAILURE;
     }
 
@@ -2164,7 +2181,7 @@ int main(int argc, char* argv[]) {
     ss.str("");
     ss << "Input data is invalid. Perhaps you used the wrong corpus file?"
       "\nOr maybe there just wasn't enough useful data in the file."
-      "\nThis file can be generated using the -r option."
+      "\nThis file can be generated using the -r or -R options."
       "\nYou can use -h or check the readme for more info."
     ;
     outputToConsole(ss.str(),MSG_ERROR);
