@@ -1,4 +1,4 @@
-﻿
+
 /*//////////////////////////////////////////////////////////////////////////////
 
   Snowball Poem Generator
@@ -9,8 +9,8 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.56"
-#define PROGRAM_DATE    "2014/02/13"
+#define PROGRAM_VERSION "Version 1.57"
+#define PROGRAM_DATE    "2014/02/15"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +31,7 @@
 #include <fstream>
 #include <sstream>
 
+#include <iterator>
 #include <vector>
 #include <map>
 
@@ -351,8 +352,9 @@ string programOptions(string linePrefix = "") {
     << "\n" << linePrefix << " -f poemFailureMax:       " << poemFailureMax
     << "\n" << linePrefix << " -p multiKeyPercentage:   " << multiKeyPercentage
     << "\n" << linePrefix << " -b poemWordBegin:        " << poemWordBegin
-    << "\n" << linePrefix << "  e usePoemWordEnd:       " << toString(usePoemWordEnd)
     << "\n" << linePrefix << " -e poemWordEnd:          " << poemWordEnd
+    << "\n" << linePrefix << "  e usePoemWordEnd:       " << toString(usePoemWordEnd)
+    << "\n" << linePrefix << "  E usePoemWordEndMax:    " << toString(usePoemWordEndMax)
     << "\n" << linePrefix << "  x excludeAnyChars:      " << toString(excludeAnyChars)
     << "\n" << linePrefix << " -x excludedChars:        " << excludedChars
     << "\n" << linePrefix << " -X exCMinWordLength:     " << exCMinWordLength
@@ -386,6 +388,14 @@ vector<string> split(string const &stringToSplit, char delim) {
   while (std::getline(ss, item, delim)) {
     returnVector.push_back(item);
   }
+  return returnVector;
+}
+vector<string> splitOnWhitespace(string const &stringToSplit) {
+  vector<string> returnVector;
+  istringstream iss(stringToSplit);
+  copy(istream_iterator<string>(iss),
+       istream_iterator<string>(),
+       back_inserter<vector<string> >(returnVector));
   return returnVector;
 }
 /// ////////////////////////////////////////////////////////////////////////////
@@ -703,7 +713,7 @@ vector<string> lineExpandedFromThesaurus(string const &inputString) {
   if (useThesaurusFile) {
 
     // Split into separate words.
-    vector<string> words = split(inputString,' ');
+    vector<string> words = splitOnWhitespace(inputString);
 
     // Loop through the words.
     for (unsigned int iWord=0; iWord<words.size(); iWord++) {
@@ -798,7 +808,7 @@ string loadInputFile(string const &fileName) {
           string previousWord;
 
           // Split the line into separate words.
-          vector<string> wordVector = split(*iterLine,' ');
+          vector<string> wordVector = splitOnWhitespace(*iterLine);
 
           // Examine each individual word.
           for (vector<string>::iterator iterWord =wordVector.begin();
@@ -899,15 +909,15 @@ string loadInputFile(string const &fileName) {
   // Sort the raw snowball vector.
   sortAndDedupe(rawSnowball);
 
-  // Save the raw snowball vector to a temporary "snowball-input-temp-" file.
+  // Save the raw snowball vector to a temporary "snowball-temp-" file.
   stringstream ss;
-  ss << "snowball-input-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
+  ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
   vectorSaveToFile(rawSnowball,ss.str(),true,false);
 
   // Output debug info to console.
   outputToConsole("loadInputFile: Output: " + ss.str(), MSG_DEBUG);
 
-  // Return the name of the temporary "snowball-input-temp-" file.
+  // Return the name of the temporary "snowball-temp-" file.
   return ss.str();
 }
 /// ////////////////////////////////////////////////////////////////////////////
@@ -2152,7 +2162,9 @@ int main(int argc, char* argv[]) {
     saveToFileDeadBranches("output-wordsDeadBranches.txt");
   }
 
+
   /// Inputs are all present and correct. Let's make some poems!
+
 
   // Set a seed for the RNG.
   srand (time(NULL));

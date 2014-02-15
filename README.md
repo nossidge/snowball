@@ -93,8 +93,8 @@ but will output any poems it has found up to that point.
 
 ## Input Files - Raw English Text - Corpus
 
-When the "-r" option is specified, the program loops through a directory and
-loads each file it finds there. It does no error checking, so make sure that
+When the "-r" or "-R" option is specified, the program loops through a directory
+and loads each file it finds there. It does no error checking, so make sure that
 the directory contains only text files.
 
 It then saves all the snowballing phrases to a corpus file, so that it can be
@@ -208,8 +208,7 @@ The code scans through the input file, and examine each whitespace-separated
 word. If the word contains punctuation or numbers then it is ignored. This
 means that it also does not word pair between line breaks. This may perhaps be
 an issue with books from Project Gutenberg; as their text files are fixed width
-we could be missing some word pairs. Also, it ignores any word at the end of a
-sentence.
+we could be missing some word pairs.
 
 ### Other languages
 It shouldn't be too tricky to alter this to accept Êúröpèāñ type accent
