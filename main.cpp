@@ -9,7 +9,7 @@
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.57"
+#define PROGRAM_VERSION "Version 1.58"
 #define PROGRAM_DATE    "2014/02/15"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,7 +756,6 @@ string loadInputFile(string const &fileName) {
   // We need to save each with a different file number suffix.
   // So we need to track how many files have been read.
   static unsigned int functionCounter = 0;
-  functionCounter++;
 
   // Vector for the ascending length word strings.
   vector<string> rawSnowball;
@@ -906,19 +905,35 @@ string loadInputFile(string const &fileName) {
     vectorSaveToFile(wordsNotInLexicon,"output-wordsNotInLexicon.txt",true,false);
   }
 
-  // Sort the raw snowball vector.
-  sortAndDedupe(rawSnowball);
+  // Output file name.
+  string outputFile = "";
 
-  // Save the raw snowball vector to a temporary "snowball-temp-" file.
-  stringstream ss;
-  ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
-  vectorSaveToFile(rawSnowball,ss.str(),true,false);
+  // Only save to a file if {rawSnowball} contains information.
+  if (rawSnowball.size() != 0) {
 
-  // Output debug info to console.
-  outputToConsole("loadInputFile: Output: " + ss.str(), MSG_DEBUG);
+    // File contains snowball phrases, so increment static counter.
+    functionCounter++;
+
+    // Sort the raw snowball vector.
+    sortAndDedupe(rawSnowball);
+
+    // Save the raw snowball vector to a temporary "snowball-temp-" file.
+    stringstream ss;
+    ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
+    outputFile = ss.str();
+    vectorSaveToFile(rawSnowball,outputFile,true,false);
+
+    // Output debug info to console.
+    outputToConsole("loadInputFile: Output: " + outputFile, MSG_DEBUG);
+
+  } else {
+
+    // Output debug info to console.
+    outputToConsole("loadInputFile: No snowballs found.", MSG_DEBUG);
+  }
 
   // Return the name of the temporary "snowball-temp-" file.
-  return ss.str();
+  return outputFile;
 }
 /// ////////////////////////////////////////////////////////////////////////////
 // Import a preprocessed snowballing corpus file to the global vectors:
@@ -1047,7 +1062,9 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
                                iter != inputFiles.end();
                                iter++) {
     string outputFileName = loadInputFile(*iter);
-    allInputFiles.push_back(outputFileName);
+
+    // If the above function returned "", then the input file contained no snowballs.
+    if (outputFileName != "") allInputFiles.push_back(outputFileName);
   }
 
   // Vector of all lines in all files.
