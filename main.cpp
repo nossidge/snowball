@@ -4,13 +4,14 @@
   Snowball Poem Generator
 
   by Paul Thompson - nossidge@gmail.com
+  by Paul Thompson - nossidge@gmail.com
   Project Email    - snowballpoetry@gmail.com
   Project Homepage - https://github.com/nossidge/snowball
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.58"
-#define PROGRAM_DATE    "2014/02/15"
+#define PROGRAM_VERSION "Version 1.59"
+#define PROGRAM_DATE    "2014/03/16"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +55,10 @@ bool outputIsQuiet = false;
 // Output generated snowball poems to stdout INSTEAD OF to separate files.
 //   (overides the "outputIsVerbose" option)
 bool outputPoemsOnly = false;
+
+// Output generated snowball poems to stdout continuously.
+//   (overides the "outputIsVerbose" option)
+bool outputPoemsContinuously = false;
 
 // Is the input raw English text? (If not, then we'll use a file containing
 //   previously discovered snowballing phrases)
@@ -207,10 +212,10 @@ string toString(bool inputBool) {
 // If (outputPoemsOnly), only output MSG_POEMs
 enum MsgType { MSG_STANDARD, MSG_ERROR, MSG_DEBUG, MSG_POEM };
 void outputToConsole(string const &message, MsgType const &type, bool lineEnd = true) {
-  if (outputPoemsOnly && (type == MSG_POEM) ) {
+  if ( (outputPoemsOnly || outputPoemsContinuously) && (type == MSG_POEM) ) {
     cout << message;
     if (lineEnd) cout << endl;
-  } else if (!outputPoemsOnly && !outputIsQuiet) {
+  } else if (!(outputPoemsOnly || outputPoemsContinuously) && !outputIsQuiet) {
     if ( (type == MSG_STANDARD) || (type == MSG_DEBUG && outputIsVerbose) ) {
       cout << message;
       if (lineEnd) cout << endl;
@@ -331,6 +336,7 @@ string programOptions(string linePrefix = "") {
     << "\n" << linePrefix << " -v outputIsVerbose:      " << toString(outputIsVerbose)
     << "\n" << linePrefix << " -q outputIsQuiet:        " << toString(outputIsQuiet)
     << "\n" << linePrefix << " -o outputPoemsOnly:      " << toString(outputPoemsOnly)
+    << "\n" << linePrefix << " -O outputContinuously:   " << toString(outputPoemsContinuously)
     << "\n" << linePrefix << " -d saveVectorsToFile:    " << toString(saveVectorsToFile)
     << "\n" << linePrefix
     << "\n" << linePrefix << "  r processRawText:       " << toString(processRawText)
@@ -1289,7 +1295,7 @@ bool createPoemSnowball(string const &seedPhrase) {
   if (useSeedPhrase) seedPhraseVector = split(seedPhrase,' ');
 
   // Only need the file name if it's going to be written to a file.
-  if ( !outputPoemsOnly && (poemTarget > 0) ) {
+  if ( !(outputPoemsOnly || outputPoemsContinuously) && (poemTarget > 0) ) {
 
     // Add the seedPhrase to the file name, if necessary.
     string fileNameAppend = "";
@@ -1370,6 +1376,7 @@ bool createPoemSnowball(string const &seedPhrase) {
   }
 
   // Vector to hold all the generated snowballs.
+  // At the end of the function, this will be written to a file, or stdout.
   vector<string> allSnowballs;
 
   // Loop and loop to make lots of snowballs.
@@ -1594,65 +1601,75 @@ bool createPoemSnowball(string const &seedPhrase) {
       }
     }
 
-    // Write poem to {allSnowballs}, truncating if necessary.
+    // Write {theSnowball} to a space delimited string, truncating if necessary.
     unsigned int maxLen = ( usePoemWordEndMax ? (poemWordEnd-poemWordBegin+1) : theSnowball.size() );
     string snowballString;
     for (unsigned int i = 0; i < maxLen; i++) {
       snowballString = snowballString + theSnowball[i] + " ";
     } snowballString.erase(snowballString.find_last_not_of(" ")+1);
-    allSnowballs.push_back(snowballString);
+
+
+    // Write poem to {allSnowballs} or directly to stdout.
+    if (outputPoemsContinuously) {
+      cout << snowballString << endl;
+    } else {
+      allSnowballs.push_back(snowballString);
+    }
 
     // Add to the counter.
     poemCountSuccess++;
   }
 
-  // Sort all the poems alphabetically.
-  // This will also get rid of duplicates, although with a large
-  //   preprocessed corpus file it's unlikely there will be many.
-  sortAndDedupe(allSnowballs);
+  // If we need to write sorted and deduped to stdout or file.
+  if (!outputPoemsContinuously) {
 
-  // Create the generation information header, if necessary.
-  stringstream ssHeader;
-  if (writeHeaderInfo) {
-    ssHeader << string(80,'#') << programVersion("#") << endl;
-    ssHeader << "#" << endl;
-    ssHeader << "# File created on  - " << currentDateTime() << endl;
-    ssHeader << "# Command options  - \"" << programInputArguments << "\"" << endl;
-    ssHeader << string(80,'#') << programOptions("#") << string(80,'#') << endl;
-  }
+    // Sort all the poems alphabetically.
+    // This will also get rid of duplicates, although with a large
+    //   preprocessed corpus file it's unlikely there will be many.
+    sortAndDedupe(allSnowballs);
 
-  // If the option "outputPoemsOnly" is true then:
-  // Write the generated snowball poems to stdout INSTEAD OF to a file.
-  if (outputPoemsOnly) {
-
-    // Write the header, if necessary.
-    if (writeHeaderInfo) outputToConsole(ssHeader.str(), MSG_POEM);
-
-    // Write {allSnowballs} vector to stdout.
-    for(unsigned int i=0; i < allSnowballs.size(); i++) {
-      outputToConsole(allSnowballs[i], MSG_POEM);
+    // Create the generation information header, if necessary.
+    stringstream ssHeader;
+    if (writeHeaderInfo) {
+      ssHeader << string(80,'#') << programVersion("#") << endl;
+      ssHeader << "#" << endl;
+      ssHeader << "# File created on  - " << currentDateTime() << endl;
+      ssHeader << "# Command options  - \"" << programInputArguments << "\"" << endl;
+      ssHeader << string(80,'#') << programOptions("#") << string(80,'#') << endl;
     }
 
-  } else {
+    // If the option "outputPoemsOnly" is true then:
+    // Write the generated snowball poems to stdout INSTEAD OF to a file.
+    if (outputPoemsOnly) {
 
-    // Open the output file for this batch.
-    ofstream outputFileSingle;
-    outputFileSingle.open(fileName.c_str(), fstream::app);
+      // Write the header, if necessary.
+      if (writeHeaderInfo) outputToConsole(ssHeader.str(), MSG_POEM);
 
-    // Write the header, if necessary.
-    if (writeHeaderInfo) outputFileSingle << ssHeader.str();
+      // Write {allSnowballs} vector to stdout.
+      for(unsigned int i=0; i < allSnowballs.size(); i++) {
+        outputToConsole(allSnowballs[i], MSG_POEM);
+      }
 
-    // Write {allSnowballs} vector to output file.
-    for (vector<string>::iterator iter = allSnowballs.begin();
-                                  iter!= allSnowballs.end(); ++iter) {
-      outputFileSingle << *iter << endl;
+    } else {
+
+      // Open the output file for this batch.
+      ofstream outputFileSingle;
+      outputFileSingle.open(fileName.c_str(), fstream::app);
+
+      // Write the header, if necessary.
+      if (writeHeaderInfo) outputFileSingle << ssHeader.str();
+
+      // Write {allSnowballs} vector to output file.
+      for (vector<string>::iterator iter = allSnowballs.begin();
+                                    iter!= allSnowballs.end(); ++iter) {
+        outputFileSingle << *iter << endl;
+      }
+      outputFileSingle.close();
+
+      // Print the file name to stdout
+      outputToConsole(fileName, MSG_STANDARD);
     }
-    outputFileSingle.close();
-
-    // Print the file name to stdout
-    outputToConsole(fileName, MSG_STANDARD);
   }
-
 
   // If we had to abandon some poems due to multiple failures, inform the user.
   //   But it's not really an error (they do have some poems, just not as many
@@ -1765,7 +1782,8 @@ int main(int argc, char* argv[]) {
   // Booleans for whether or not the option was specified.
   bool invalidOption = false;
   bool opt_h = false, opt_V = false;
-  bool opt_q = false, opt_o = false, opt_v = false, opt_d = false;
+  bool opt_q = false, opt_o = false, opt_O = false;
+  bool opt_v = false, opt_d = false;
   bool opt_H = false;
   bool opt_s = false, opt_i = false;
   bool opt_c = false, opt_r = false, opt_R = false;
@@ -1777,7 +1795,7 @@ int main(int argc, char* argv[]) {
 
   // Loop through the argument list to determine which options were specified.
   int c;
-  while ((c = getopt(argc, argv, ":hVqovdHn:f:p:k:b:e:E:x:X:s:i::c:C:t:r:R:l:LT")) != -1) {
+  while ((c = getopt(argc, argv, ":hVqoOvdHn:f:p:k:b:e:E:x:X:s:i::c:C:t:r:R:l:LT")) != -1) {
     switch (c) {
 
       // Options without arguments.
@@ -1785,6 +1803,7 @@ int main(int argc, char* argv[]) {
       case 'V':  opt_V = true;  break;
       case 'q':  opt_q = true;  break;
       case 'o':  opt_o = true;  break;
+      case 'O':  opt_O = true;  break;
       case 'v':  opt_v = true;  break;
       case 'd':  opt_d = true;  break;
       case 'H':  opt_H = true;  break;
@@ -1982,6 +2001,9 @@ int main(int argc, char* argv[]) {
 
   // Write the generated snowball poems to stdout INSTEAD OF to separate files.
   outputPoemsOnly = opt_o;
+
+  // Write the generated snowball poems to stdout continuously.
+  outputPoemsContinuously = opt_O;
 
   // Write program information to standard output.
   outputIsVerbose = (outputIsVerbose || opt_v);

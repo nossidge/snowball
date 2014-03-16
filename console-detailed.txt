@@ -2,7 +2,7 @@
 ======== Usage
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-H]
+       snowball [-v | -q] [-v | -o | -O] [-d] [-H]
                 [-n number] [-f number]
                 [-p number] [-k number]
                 [-b number] [-e number | -E number]
@@ -63,6 +63,11 @@ Write the generated snowball poems to stdout INSTEAD OF to separate files.
 Overrides the -v option. Using this with the -q option will output nothing and
 create no snowball files. I'm not sure why you'd want to do this though.
 Checking the exit status maybe?
+
+-O
+Write the generated snowball poems to stdout, immediately after they have been
+generated. By default, the program sorts the output list of poems and removes
+duplicates. This option specifies to do no sorting or duplicate removal.
 
 -v
 Write verbose program information to standard output. This displays where

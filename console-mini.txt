@@ -1,6 +1,6 @@
 
 Usage: snowball [-h | -V]
-       snowball [-v | -q] [-v | -o] [-d] [-H]
+       snowball [-v | -q] [-v | -o | -O] [-d] [-H]
                 [-n number] [-f number]
                 [-p number] [-k number]
                 [-b number] [-e number | -E number]
@@ -24,6 +24,7 @@ Console output:
   Default   Write snowball file names to stdout, errors to stderr
   -q        Do not write anything to standard or error output
   -o        Write the snowball poems to stdout instead of to separate files
+  -O        Write the snowball poems to stdout immediately (don't sort them)
   -v        Write verbose program information to standard output
   -d        Debug. Write internal program vectors to separate files
   -H        Do not write verbose program information header to the file
