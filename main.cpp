@@ -942,7 +942,7 @@ string loadInputFile(string const &fileName, string const &tempFileRandomName) {
 
     // Save the raw snowball vector to a temporary "snowball-temp-" file.
     stringstream ss;
-    ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << "-" << tempFileRandomName << ".txt";
+    ss << "snowball-temp-" << tempFileRandomName << "-" << setw(6) << setfill('0') << functionCounter << ".txt";
     outputFile = ss.str();
     vectorSaveToFile(rawSnowball,outputFile,true,false);
 
@@ -1765,6 +1765,9 @@ bool setPathAndFileName() {
 /// ////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[]) {
 
+  // Set a seed for the RNG.
+  srand (time(NULL));
+
   // Get the console options that were specified. (only after the first element)
   vector<string> argarg(argv + 1, argv + argc);
   programInputArguments = toString(argarg," ");
@@ -2224,9 +2227,6 @@ int main(int argc, char* argv[]) {
 
   /// Inputs are all present and correct. Let's make some poems!
 
-
-  // Set a seed for the RNG.
-  srand (time(NULL));
 
   // True if it went wrong somewhere.
   bool problemWithTheSnowballs = false;
