@@ -4,14 +4,13 @@
   Snowball Poem Generator
 
   by Paul Thompson - nossidge@gmail.com
-  by Paul Thompson - nossidge@gmail.com
   Project Email    - snowballpoetry@gmail.com
   Project Homepage - https://github.com/nossidge/snowball
 
 //////////////////////////////////////////////////////////////////////////////*/
 
-#define PROGRAM_VERSION "Version 1.59"
-#define PROGRAM_DATE    "2014/03/16"
+#define PROGRAM_VERSION "Version 1.6"
+#define PROGRAM_DATE    "2015/07/19"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -405,6 +404,24 @@ vector<string> splitOnWhitespace(string const &stringToSplit) {
   return returnVector;
 }
 /// ////////////////////////////////////////////////////////////////////////////
+// Generate a random alphanum string with a specified length.
+// From - http://www.cplusplus.com/forum/windows/88843/
+static const char alphanum[] =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  "abcdefghijklmnopqrstuvwxyz"
+  "0123456789";
+int stringLength = sizeof(alphanum) - 1;
+char randomChar() {
+  return alphanum[rand() % stringLength];
+}
+string randomString(const int len) {
+  string str;
+  for(int i=0; i < len; i++) {
+    str += randomChar();
+  }
+  return str;
+}
+/// ////////////////////////////////////////////////////////////////////////////
 bool findInVector(vector<string> const &haystack, string const &needle) {
   return (std::binary_search(haystack.begin(), haystack.end(), needle));
 }
@@ -756,7 +773,7 @@ vector<string> lineExpandedFromThesaurus(string const &inputString) {
 // This function reads an unprocessed natural language text file, extracts
 //   just the word phrases that snowball upwards in letter count, and outputs
 //   to a separate file whose name is returned as the function's return value.
-string loadInputFile(string const &fileName) {
+string loadInputFile(string const &fileName, string const &tempFileRandomName) {
   outputToConsole("loadInputFile:  Input: " + fileName, MSG_DEBUG);
 
   // We need to save each with a different file number suffix.
@@ -925,7 +942,7 @@ string loadInputFile(string const &fileName) {
 
     // Save the raw snowball vector to a temporary "snowball-temp-" file.
     stringstream ss;
-    ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << ".txt";
+    ss << "snowball-temp-" << setw(6) << setfill('0') << functionCounter << "-" << tempFileRandomName << ".txt";
     outputFile = ss.str();
     vectorSaveToFile(rawSnowball,outputFile,true,false);
 
@@ -1060,6 +1077,9 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
     inputFiles = travelDirectory(directoryPath,true);
   }
 
+  // Random filename stamp for the directory's temp files.
+  string tempFileRandomName = randomString(8);
+
   // Vector of all files that are created in this process.
   vector<string> allInputFiles;
 
@@ -1067,7 +1087,7 @@ bool loadInputFilesFromDirectory(string const &directoryPath) {
   for(vector<string>::iterator iter = inputFiles.begin();
                                iter != inputFiles.end();
                                iter++) {
-    string outputFileName = loadInputFile(*iter);
+    string outputFileName = loadInputFile(*iter,tempFileRandomName);
 
     // If the above function returned "", then the input file contained no snowballs.
     if (outputFileName != "") allInputFiles.push_back(outputFileName);
